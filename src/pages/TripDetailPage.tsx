@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { differenceInDays, parseISO } from 'date-fns';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, ChevronUp, Hotel, RotateCcw, Sparkles } from 'lucide-react';
 import { useTrips } from '../context/TripContext';
@@ -179,7 +180,7 @@ export default function TripDetailPage() {
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-extrabold text-white truncate tracking-tight">{trip.name}</h1>
             <p className="text-slate-400 text-sm">
-              {trip.cities.length} {trip.cities.length === 1 ? 'city' : 'cities'} · {allDays.length} {allDays.length === 1 ? 'day' : 'days'}
+              {trip.cities.length} {trip.cities.length === 1 ? 'city' : 'cities'} · {differenceInDays(parseISO(trip.endDate), parseISO(trip.startDate)) + 1} days
             </p>
           </div>
           {selectedDay && (
