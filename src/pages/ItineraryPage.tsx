@@ -81,7 +81,7 @@ export default function ItineraryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-hero flex flex-col safe-top">
+    <div className="min-h-screen bg-gradient-hero flex flex-col safe-top max-w-3xl mx-auto">
       {/* Header */}
       <div className="px-5 pt-10 pb-3 shrink-0 z-10">
         <div className="flex items-center gap-3 mb-3">

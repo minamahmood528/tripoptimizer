@@ -177,7 +177,7 @@ export default function NewTripPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-hero pb-28 safe-top">
+    <div className="min-h-screen bg-gradient-hero pb-28 safe-top max-w-3xl mx-auto">
       {/* Header */}
       <div className="px-5 pt-12 pb-4 flex items-center gap-3">
         <button
