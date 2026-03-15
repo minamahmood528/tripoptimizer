@@ -1,28 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Hotel, RotateCcw, Sparkles, MapPin } from 'lucide-react';
+import { ArrowLeft, Hotel, RotateCcw, Sparkles } from 'lucide-react';
 import { useTrips } from '../context/TripContext';
 import { useAuth } from '../context/AuthContext';
 import ActivityCard from '../components/cards/ActivityCard';
 import TripMap from '../components/maps/TripMap';
 import { THEME_LABELS } from '../utils/mockData';
-import { formatDuration, generateItineraryOptionsAsync } from '../utils/itinerary';
+import { formatDuration, generateItineraryOptionsAsync, getCommuteOptions } from '../utils/itinerary';
 import type { Activity, ItineraryOption, CityEntry, ItineraryDay } from '../types';
 import clsx from 'clsx';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const COMMUTE_EMOJI: Record<string, string> = {
-  walking: '🚶', uber: '🚗', grab: '🚗', taxi: '🚕',
-  bus: '🚌', subway: '🚇', bike: '🚴', scooter: '🛵',
-  car_rental: '🚙', tuk_tuk: '🛺',
-};
-
-const COMMUTE_LABEL: Record<string, string> = {
-  walking: 'walk', uber: 'Uber', grab: 'Grab', taxi: 'taxi',
-  bus: 'bus', subway: 'metro', bike: 'bike', scooter: 'scooter',
-  car_rental: 'drive', tuk_tuk: 'tuk-tuk',
-};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -61,17 +49,19 @@ export default function TripDetailPage() {
   const [liveOptions, setLiveOptions] = useState<ItineraryOption[] | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [highlightedActivity, setHighlightedActivity] = useState<Activity | null>(null);
+  const [hoursOutside, setHoursOutside] = useState<number | null>(null);
   const dayStripRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!trip) navigate('/dashboard');
   }, [trip, navigate]);
 
-  // When a different day is selected, reset option + live data
+  // When a different day is selected, reset option + live data + hours
   useEffect(() => {
     setSelectedOptionIdx(0);
     setLiveOptions(null);
     setHighlightedActivity(null);
+    setHoursOutside(null);
   }, [selectedDayId]);
 
   // Auto-select first day when trip first loads
@@ -111,9 +101,20 @@ export default function TripDetailPage() {
   const selectedDay = selectedFlat?.day ?? null;
   const displayOptions = liveOptions ?? selectedDay?.options ?? [];
   const selectedOption = displayOptions[selectedOptionIdx] ?? displayOptions[0] ?? null;
-  const primaryCommute = user?.preferences?.commuteTypes?.[0] ?? 'walking';
-  const commuteEmoji = COMMUTE_EMOJI[primaryCommute] ?? '🚶';
-  const commuteLabel = COMMUTE_LABEL[primaryCommute] ?? 'walk';
+  const userCommutes = user?.preferences?.commuteTypes ?? ['walking'];
+
+  // Trim activities to fit within hours-outside budget
+  const visibleActivities = useMemo(() => {
+    if (!selectedOption) return [];
+    if (!hoursOutside) return selectedOption.activities;
+    const budgetMin = hoursOutside * 60;
+    let total = 0;
+    return selectedOption.activities.filter(act => {
+      const needed = (act.travelTimeMin || 0) + act.durationMin;
+      if (total + needed <= budgetMin) { total += needed; return true; }
+      return false;
+    });
+  }, [selectedOption, hoursOutside]);
 
   const handleSelectOption = (idx: number) => {
     setSelectedOptionIdx(idx);
@@ -329,11 +330,43 @@ export default function TripDetailPage() {
               {/* Timeline */}
               {selectedOption && (
                 <div>
-                  {/* Theme header */}
-                  <div className="flex items-center gap-2 mb-3">
+                  {/* Theme header + hours-outside selector */}
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
                     <span className="text-base">{THEME_LABELS[selectedOption.theme]?.emoji}</span>
                     <span className="text-white font-bold text-sm">{THEME_LABELS[selectedOption.theme]?.name}</span>
-                    <span className="text-white/30 text-xs ml-auto">{selectedOption.activities.length} stops · starts {selectedOption.startTime}</span>
+                    <span className="text-white/30 text-xs ml-auto">{visibleActivities.length} stops</span>
+                  </div>
+
+                  {/* Hours Outside Selector */}
+                  <div className="flex items-center gap-2 mb-4 flex-wrap">
+                    <span className="text-white/40 text-xs font-medium">⏰ Time outside:</span>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {[4, 6, 8, 10].map(h => (
+                        <button
+                          key={h}
+                          onClick={() => setHoursOutside(hoursOutside === h ? null : h)}
+                          className={clsx(
+                            'px-2.5 py-1 rounded-lg text-xs font-semibold transition-all border',
+                            hoursOutside === h
+                              ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300'
+                              : 'glass border-white/10 text-white/40 hover:text-white/70',
+                          )}
+                        >
+                          {h}h
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setHoursOutside(null)}
+                        className={clsx(
+                          'px-2.5 py-1 rounded-lg text-xs font-semibold transition-all border',
+                          !hoursOutside
+                            ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300'
+                            : 'glass border-white/10 text-white/40 hover:text-white/70',
+                        )}
+                      >
+                        Full Day
+                      </button>
+                    </div>
                   </div>
 
                   {/* Start dot */}
@@ -352,23 +385,24 @@ export default function TripDetailPage() {
                     </div>
                   )}
 
-                  {selectedOption.activities.map((act, i) => {
-                    const isLast = i === selectedOption.activities.length - 1;
-                    const nextAct = selectedOption.activities[i + 1];
+                  {visibleActivities.map((act, i) => {
+                    const isLast = i === visibleActivities.length - 1;
+                    const commuteOpts = getCommuteOptions(act.distanceFromPrevKm, userCommutes);
                     return (
                       <div key={act.id}>
-                        {/* Travel connector before this stop */}
-                        {act.travelTimeMin > 0 && (
+                        {/* Travel connector — shows all user's commute modes */}
+                        {act.distanceFromPrevKm > 0 && commuteOpts.length > 0 && (
                           <div className="flex items-start gap-3 mb-0">
                             <div className="flex flex-col items-center shrink-0 w-8">
                               <div className="w-px flex-1 min-h-[28px] bg-white/10" />
                             </div>
-                            <div className="flex items-center gap-2 py-1 text-[11px] text-white/30">
-                              <span>{commuteEmoji}</span>
-                              <span>{act.travelTimeMin} min by {commuteLabel}</span>
-                              {act.distanceFromPrevKm > 0 && (
-                                <span className="text-white/20">· {act.distanceFromPrevKm} km</span>
-                              )}
+                            <div className="flex items-center gap-3 py-1 flex-wrap">
+                              {commuteOpts.map(o => (
+                                <span key={o.label} className="text-[11px] text-white/35">
+                                  {o.emoji} {o.minutes} min {o.label}
+                                </span>
+                              ))}
+                              <span className="text-white/20 text-[11px]">· {act.distanceFromPrevKm} km</span>
                             </div>
                           </div>
                         )}
