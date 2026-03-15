@@ -272,6 +272,7 @@ export default function ExplorePage() {
             activities={places.slice(0, 20)}
             height="280px"
             showRoute={false}
+            autoFitBounds={false}
             uniformMarkerColor={EXPLORE_MARKER_COLOR}
             onMapIdle={handleMapIdle}
             onMarkerClick={(act) => {

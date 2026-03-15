@@ -12,6 +12,8 @@ interface TripMapProps {
   showRoute?: boolean;
   /** When set, all activity markers use this colour instead of per-category colours */
   uniformMarkerColor?: string;
+  /** Set false to let the user control zoom freely (Explore mode). Default true. */
+  autoFitBounds?: boolean;
   onMarkerClick?: (activity: Activity) => void;
   onMapIdle?: (center: LatLng) => void;
 }
@@ -26,7 +28,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   essential: '#EF4444',
 };
 
-export default function TripMap({ accommodation, activities, height = '400px', showRoute = true, uniformMarkerColor, onMarkerClick, onMapIdle }: TripMapProps) {
+export default function TripMap({ accommodation, activities, height = '400px', showRoute = true, uniformMarkerColor, autoFitBounds = true, onMarkerClick, onMapIdle }: TripMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
@@ -175,13 +177,13 @@ export default function TripMap({ accommodation, activities, height = '400px', s
       polylineRef.current.setMap(map);
     }
 
-    // Fit bounds only when there are activities to show
-    if (activities.length > 0) {
+    // Fit bounds only when enabled and there are activities to show
+    if (autoFitBounds && activities.length > 0) {
       const bounds = new window.google.maps.LatLngBounds();
       path.forEach((p) => bounds.extend(p));
       map.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
     }
-  }, [isLoaded, activities, accommodation, onMarkerClick, showRoute]);
+  }, [isLoaded, activities, accommodation, onMarkerClick, showRoute, autoFitBounds]);
 
   if (!apiKey) {
     return (
