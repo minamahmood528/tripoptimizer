@@ -350,7 +350,7 @@ export default function ExplorePage() {
     : [];
 
   return (
-    <div className="h-screen bg-gradient-hero max-w-3xl mx-auto flex overflow-hidden">
+    <div className="h-[calc(100vh-72px)] bg-gradient-hero max-w-4xl mx-auto flex overflow-hidden">
 
       {/* ── LEFT: scrollable results list ─────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0 border-r border-white/5">
@@ -402,7 +402,7 @@ export default function ExplorePage() {
         </div>
 
         {/* Scrollable: filter panel + cards */}
-        <div className="flex-1 overflow-y-auto px-3 pt-3 pb-24">
+        <div className="flex-1 overflow-y-auto px-3 pt-3 pb-4">
 
           {/* Sort & Filter panel */}
           {showSortFilter && (
