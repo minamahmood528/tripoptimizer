@@ -8,6 +8,7 @@ interface TripCtx {
   trips: Trip[];
   activeTrip: Trip | null;
   setActiveTrip: (t: Trip | null) => void;
+  createFullTrip: (trip: Trip) => void;
   createTrip: (data: Omit<Trip, 'id' | 'userId' | 'createdAt' | 'status'>) => Trip;
   updateTrip: (id: string, data: Partial<Trip>) => void;
   deleteTrip: (id: string) => void;
@@ -48,6 +49,14 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   // --- MUTATIONS — all use setTrips(prev => ...) to avoid stale closures ---
+
+  const createFullTrip = useCallback((trip: Trip) => {
+    setTrips(prev => {
+      const updated = [...prev, trip];
+      writeStorage(updated);
+      return updated;
+    });
+  }, [writeStorage]);
 
   const createTrip = useCallback((data: Omit<Trip, 'id' | 'userId' | 'createdAt' | 'status'>): Trip => {
     const trip: Trip = {
@@ -238,7 +247,7 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
   return (
     <TripContext.Provider value={{
       trips, activeTrip, setActiveTrip,
-      createTrip, updateTrip, deleteTrip,
+      createFullTrip, createTrip, updateTrip, deleteTrip,
       addCity, updateCity, setAccommodation,
       generateDaysForCity, selectItineraryOption, addActivityToDay,
     }}>

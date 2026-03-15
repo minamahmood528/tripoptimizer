@@ -6,9 +6,10 @@ import {
 import { useAuth, COMMUTE_OPTIONS, DIETARY_OPTIONS } from '../context/AuthContext';
 import { useTrips } from '../context/TripContext';
 import { useGoogleMaps } from '../hooks/useGoogleMaps';
-import { format, addDays, parseISO } from 'date-fns';
+import { buildItineraryDay } from '../utils/itinerary';
+import { eachDayOfInterval, parseISO, format, addDays } from 'date-fns';
 import clsx from 'clsx';
-import type { CommuteType, DietaryRestriction, UserPreferences } from '../types';
+import type { CommuteType, DietaryRestriction, UserPreferences, Trip, CityEntry, Accommodation } from '../types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ const STEPS = [
 
 export default function NewTripPage() {
   const { user } = useAuth();
-  const { createTrip, addCity, setAccommodation, generateDaysForCity } = useTrips();
+  const { createFullTrip } = useTrips();
   const navigate = useNavigate();
   const apiKey = user?.preferences?.googleMapsApiKey ?? '';
   const { isLoaded: mapsLoaded } = useGoogleMaps(apiKey);
@@ -105,16 +106,47 @@ export default function NewTripPage() {
 
     const today = format(new Date(), 'yyyy-MM-dd');
     const confirmedBlocks = blocks.filter(b => b.cityConfirmed);
+    const tripId = `trip_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
-    const trip = createTrip({
-      name: tripName,
-      cities: [],
-      startDate: confirmedBlocks[0]?.arrivalDate ?? today,
-      endDate: confirmedBlocks[confirmedBlocks.length - 1]?.departureDate ?? today,
-    });
+    // Build all cities (with accommodation + itinerary days) in memory first
+    const cities: CityEntry[] = confirmedBlocks.map((block, blockIdx) => {
+      const cityId = `city_${Date.now()}_${blockIdx}_${Math.random().toString(36).slice(2, 6)}`;
 
-    for (const block of confirmedBlocks) {
-      const city = addCity(trip.id, {
+      const accommodation: Accommodation | null = block.accName ? {
+        id: `acc_${Date.now()}_${blockIdx}`,
+        name: block.accName,
+        address: block.accAddress || `${block.name} City Center`,
+        lat: block.accLat ?? block.lat + 0.001,
+        lng: block.accLng ?? block.lng + 0.001,
+        checkIn: block.arrivalDate,
+        checkOut: block.departureDate,
+        type: 'hotel',
+      } : null;
+
+      let itineraryDays: import('../types').ItineraryDay[] = [];
+      if (accommodation) {
+        try {
+          const days = eachDayOfInterval({
+            start: parseISO(block.arrivalDate),
+            end: parseISO(block.departureDate),
+          });
+          itineraryDays = days.map((date, i) =>
+            buildItineraryDay(
+              cityId,
+              format(date, 'yyyy-MM-dd'),
+              i + 1,
+              accommodation,
+              block.name,
+              [],
+              user!.preferences,
+            )
+          );
+        } catch { /* invalid date range — leave itineraryDays empty */ }
+      }
+
+      return {
+        id: cityId,
+        tripId,
         name: block.name,
         country: block.country,
         countryCode: block.countryCode,
@@ -122,24 +154,25 @@ export default function NewTripPage() {
         lng: block.lng,
         arrivalDate: block.arrivalDate,
         departureDate: block.departureDate,
-        accommodation: null,
-      });
-      if (block.accName) {
-        setAccommodation(trip.id, city.id, {
-          id: `acc_${Date.now()}_${city.id}`,
-          name: block.accName,
-          address: block.accAddress || `${block.name} City Center`,
-          lat: block.accLat ?? block.lat + 0.001,
-          lng: block.accLng ?? block.lng + 0.001,
-          checkIn: block.arrivalDate,
-          checkOut: block.departureDate,
-          type: 'hotel',
-        });
-        generateDaysForCity(trip.id, city.id);
-      }
-    }
+        accommodation,
+        itineraryDays,
+      };
+    });
 
-    setCreatedTripId(trip.id);
+    // Single atomic write — no sequential state mutations
+    const trip: Trip = {
+      id: tripId,
+      userId: user!.id,
+      name: tripName,
+      cities,
+      startDate: confirmedBlocks[0]?.arrivalDate ?? today,
+      endDate: confirmedBlocks[confirmedBlocks.length - 1]?.departureDate ?? today,
+      status: 'planning',
+      createdAt: new Date().toISOString(),
+    };
+
+    createFullTrip(trip);
+    setCreatedTripId(tripId);
     setIsGenerating(false);
   };
 
