@@ -350,342 +350,304 @@ export default function ExplorePage() {
     : [];
 
   return (
-    <div className="h-screen bg-gradient-hero max-w-3xl mx-auto flex flex-col overflow-hidden">
+    <div className="h-screen bg-gradient-hero max-w-3xl mx-auto flex overflow-hidden">
 
-      {/* ── Frozen top: header + chips + map ─────────────────────────────── */}
-      <div className="flex-shrink-0 safe-top">
+      {/* ── LEFT: scrollable results list ─────────────────────────────────── */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0 border-r border-white/5">
 
-      {/* Header */}
-      <div className="px-5 pt-12 pb-3">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h1 className="text-2xl font-extrabold text-white tracking-tight">Explore</h1>
-            <p className="text-slate-400 text-sm font-medium mt-0.5">{subtitleText()}</p>
-          </div>
-          {geoStatus === 'ok' && (
-            <button onClick={handleRecenter}
-              className="w-10 h-10 rounded-2xl glass flex items-center justify-center text-violet-400 hover:text-violet-300 transition-all"
-              title="Back to my location">
-              <Navigation size={18} />
-            </button>
-          )}
-        </div>
-
-        {/* Search bar */}
-        <div className="relative">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            placeholder="Search any city, place, restaurant…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-9 py-3 rounded-2xl glass border border-white/10 text-white placeholder-white/40 text-sm font-medium focus:outline-none focus:border-violet-500/50 transition-all"
-          />
-          {searchQuery && (
-            <button onClick={handleClearSearch}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors">
-              <X size={15} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Category filter chips */}
-      <div className="flex gap-2 overflow-x-auto scroll-hidden px-5 pb-3">
-        {FILTER_TYPES.map((f) => {
-          const isPersonalized = profileInterests.some((i) => INTEREST_TO_FILTER[i] === f.label);
-          return (
-            <button key={f.label} onClick={() => setFilter(f.label)}
-              className={clsx(
-                'flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-semibold transition-all',
-                filter === f.label
-                  ? 'bg-violet-100 border-violet-400/60 text-violet-700'
-                  : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/20 hover:text-white',
-              )}>
-              <span>{f.emoji}</span>
-              {f.label}
-              {isPersonalized && filter !== f.label && (
-                <span className="w-1.5 h-1.5 rounded-full bg-violet-400 opacity-70" />
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Map */}
-      <div className="px-5 pb-3 relative">
-        {mapCenter ? (
-          <TripMap
-            accommodation={centerPin}
-            activities={mapActivities}
-            height="260px"
-            showRoute={false}
-            autoFitBounds={false}
-            uniformMarkerColor={EXPLORE_MARKER_COLOR}
-            centerOverride={mapCenterOverride}
-            onMapIdle={handleMapIdle}
-            onMarkerClick={handleCardClick}
-          />
-        ) : (
-          <div style={{ height: '260px' }} className="map-container flex items-center justify-center glass">
-            <div className="flex flex-col items-center gap-2">
-              <Loader2 size={24} className="text-violet-400 animate-spin" />
-              <p className="text-white/50 text-sm">Detecting location…</p>
-            </div>
-          </div>
-        )}
-
-        {showSearchHere && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10">
-            <button onClick={handleSearchHere}
-              className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-slate-900/95 border border-white/10 text-white text-sm font-semibold shadow-card-hover backdrop-blur-sm">
-              <RefreshCw size={14} className="text-violet-400" />
-              Search this area
-            </button>
-          </div>
-        )}
-
-      </div>
-      </div>{/* end frozen top */}
-
-      {/* ── Scrollable results ───────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-5 pb-28">
-
-        {/* Status bar */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <p className="text-slate-400 text-sm font-medium">
-              {isSearching
-                ? 'Finding places…'
-                : `${filteredSortedPlaces.length}${filteredSortedPlaces.length !== places.length ? `/${places.length}` : ''} places${locationLabel ? ` in ${locationLabel}` : ''}`}
-              {isLoadingMore && !isSearching && <span className="text-violet-400 ml-1">· loading…</span>}
-            </p>
-            {/* Active dietary badges */}
-            {activeDietaryOptions.map((opt) => (
-              <span key={opt.value} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold">
-                {opt.emoji} {opt.label}
-                <button onClick={() => toggleDietary(opt.value as DietaryRestriction)} className="ml-0.5 hover:text-amber-200"><X size={10} /></button>
-              </span>
-            ))}
-            {/* Active price badges */}
-            {priceFilters.map((p) => (
-              <span key={p} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-semibold">
-                {p === 0 ? 'Free' : '$'.repeat(p)}
-                <button onClick={() => togglePrice(p)} className="ml-0.5 hover:text-emerald-200"><X size={10} /></button>
-              </span>
-            ))}
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {(isSearching || isLoadingMore) && <Loader2 size={14} className="text-violet-400 animate-spin" />}
-            <button
-              onClick={() => setShowSortFilter((v) => !v)}
-              className={clsx(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all',
-                showSortFilter || activeFilterCount > 0
-                  ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
-                  : 'bg-white/5 border-white/15 text-white/50 hover:bg-white/10 hover:text-white/80',
-              )}>
-              <ArrowUpDown size={12} />
-              Sort & Filter
-              {activeFilterCount > 0 && (
-                <span className="w-4 h-4 rounded-full bg-violet-500 text-white text-[10px] font-black flex items-center justify-center">
-                  {activeFilterCount}
-                </span>
-              )}
-              <ChevronDown size={12} className={clsx('transition-transform', showSortFilter && 'rotate-180')} />
-            </button>
-          </div>
-        </div>
-
-        {/* Sort & Filter panel */}
-        {showSortFilter && (
-          <div className="glass rounded-2xl border border-white/10 p-4 mb-4 space-y-4 animate-fade-in">
-
-            {/* Sort — single select */}
-            <div>
-              <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-2">Sort by</p>
-              <div className="flex flex-wrap gap-2">
-                {SORT_OPTIONS.map((opt) => (
-                  <button key={opt.value} onClick={() => setSortBy(opt.value)}
-                    className={clsx(
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all',
-                      sortBy === opt.value
-                        ? 'bg-violet-500/25 border-violet-500/50 text-violet-200'
-                        : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white/90',
-                    )}>
-                    <span>{opt.emoji}</span> {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Price — multi-select */}
-            <div>
-              <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-1">Price
-                <span className="ml-1 text-white/30 normal-case font-normal">· select multiple</span>
+        {/* Frozen top bar: status + sort/filter */}
+        <div className="flex-shrink-0 px-3 pt-12 pb-2 border-b border-white/5">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <p className="text-slate-400 text-xs font-medium">
+                {isSearching
+                  ? 'Finding…'
+                  : `${filteredSortedPlaces.length}${filteredSortedPlaces.length !== places.length ? `/${places.length}` : ''} places`}
+                {isLoadingMore && !isSearching && <span className="text-violet-400 ml-1">· loading…</span>}
               </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setPriceFilters([])}
-                  className={clsx(
-                    'px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all',
-                    priceFilters.length === 0
-                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                      : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white/90',
-                  )}>
-                  All
-                </button>
-                {PRICE_OPTIONS.map((opt) => (
-                  <button key={opt.value} onClick={() => togglePrice(opt.value)}
-                    className={clsx(
-                      'px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all min-w-[48px] text-center',
-                      priceFilters.includes(opt.value)
-                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                        : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white/90',
-                    )}>
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+              {activeDietaryOptions.map((opt) => (
+                <span key={opt.value} className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-semibold">
+                  {opt.emoji}
+                  <button onClick={() => toggleDietary(opt.value as DietaryRestriction)} className="hover:text-amber-200"><X size={9} /></button>
+                </span>
+              ))}
+              {priceFilters.map((p) => (
+                <span key={p} className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-semibold">
+                  {p === 0 ? 'Free' : '$'.repeat(p)}
+                  <button onClick={() => togglePrice(p)} className="hover:text-emerald-200"><X size={9} /></button>
+                </span>
+              ))}
             </div>
-
-            {/* Rating — single select (threshold) */}
-            <div>
-              <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-2">Min Rating</p>
-              <div className="flex flex-wrap gap-2">
-                {RATING_OPTIONS.map((opt) => (
-                  <button key={opt.value} onClick={() => setMinRating(opt.value)}
-                    className={clsx(
-                      'flex items-center gap-1 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all',
-                      minRating === opt.value
-                        ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
-                        : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white/90',
-                    )}>
-                    {opt.value > 0 && <Star size={10} className="text-amber-400 fill-amber-400" />}
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {(isSearching || isLoadingMore) && <Loader2 size={12} className="text-violet-400 animate-spin" />}
+              <button
+                onClick={() => setShowSortFilter((v) => !v)}
+                className={clsx(
+                  'flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all',
+                  showSortFilter || activeFilterCount > 0
+                    ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
+                    : 'bg-white/5 border-white/15 text-white/50 hover:bg-white/10 hover:text-white/80',
+                )}>
+                <ArrowUpDown size={11} />
+                Filter
+                {activeFilterCount > 0 && (
+                  <span className="w-3.5 h-3.5 rounded-full bg-violet-500 text-white text-[9px] font-black flex items-center justify-center">
+                    {activeFilterCount}
+                  </span>
+                )}
+                <ChevronDown size={11} className={clsx('transition-transform', showSortFilter && 'rotate-180')} />
+              </button>
             </div>
+          </div>
+        </div>
 
-            {/* Dietary — multi-select, food categories only */}
-            {isFoodCategory && (
+        {/* Scrollable: filter panel + cards */}
+        <div className="flex-1 overflow-y-auto px-3 pt-3 pb-24">
+
+          {/* Sort & Filter panel */}
+          {showSortFilter && (
+            <div className="glass rounded-2xl border border-white/10 p-3 mb-3 space-y-3 animate-fade-in">
+
               <div>
-                <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-1">Dietary
-                  <span className="ml-1 text-white/30 normal-case font-normal">· select multiple</span>
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => setDietaryFilters([])}
-                    className={clsx(
-                      'px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all',
-                      dietaryFilters.length === 0
-                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                        : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white/90',
-                    )}>
+                <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-1.5">Sort by</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {SORT_OPTIONS.map((opt) => (
+                    <button key={opt.value} onClick={() => setSortBy(opt.value)}
+                      className={clsx(
+                        'flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all',
+                        sortBy === opt.value
+                          ? 'bg-violet-500/25 border-violet-500/50 text-violet-200'
+                          : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white/90',
+                      )}>
+                      <span>{opt.emoji}</span> {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-1.5">Price</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <button onClick={() => setPriceFilters([])}
+                    className={clsx('px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all',
+                      priceFilters.length === 0 ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10')}>
                     All
                   </button>
-                  {DIETARY_OPTIONS.filter((d) => d.value !== 'none').map((opt) => {
-                    const isActive = dietaryFilters.includes(opt.value as DietaryRestriction);
-                    const isProfilePref = profileDietary.includes(opt.value as DietaryRestriction);
-                    return (
-                      <button key={opt.value}
-                        onClick={() => toggleDietary(opt.value as DietaryRestriction)}
-                        className={clsx(
-                          'flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all',
-                          isActive
-                            ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
-                            : isProfilePref
-                            ? 'bg-white/10 border-amber-500/25 text-white/80 hover:bg-amber-500/15 hover:border-amber-500/40'
-                            : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white/90',
-                        )}>
-                        <span>{opt.emoji}</span>
-                        {opt.label}
-                        {isProfilePref && !isActive && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 opacity-60" />
-                        )}
-                      </button>
-                    );
-                  })}
+                  {PRICE_OPTIONS.map((opt) => (
+                    <button key={opt.value} onClick={() => togglePrice(opt.value)}
+                      className={clsx('px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all',
+                        priceFilters.includes(opt.value) ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10')}>
+                      {opt.label}
+                    </button>
+                  ))}
                 </div>
               </div>
-            )}
 
-            {/* Reset */}
-            {activeFilterCount > 0 && (
-              <button onClick={resetAll}
-                className="text-xs text-white/40 hover:text-white/70 transition-colors underline underline-offset-2">
-                Reset all filters
-              </button>
-            )}
-          </div>
-        )}
+              <div>
+                <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-1.5">Min Rating</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {RATING_OPTIONS.map((opt) => (
+                    <button key={opt.value} onClick={() => setMinRating(opt.value)}
+                      className={clsx('flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all',
+                        minRating === opt.value ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10')}>
+                      {opt.value > 0 && <Star size={9} className="text-amber-400 fill-amber-400" />}
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-        {!mapsReady && geoStatus !== 'loading' && (
-          <div className="glass rounded-3xl p-8 text-center">
-            <Compass size={36} className="text-white/20 mx-auto mb-3" />
-            <p className="text-white font-bold mb-1">Google Maps API Key Required</p>
-            <p className="text-white/50 text-sm mb-4">Go to Profile → configure your API key to see real places near you.</p>
-            <a href="/profile" className="btn-primary inline-flex items-center gap-2 px-5 py-2.5 text-sm">Go to Profile →</a>
-          </div>
-        )}
-
-        {mapsReady && isSearching && places.length === 0 && (
-          <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="glass rounded-3xl p-4 border border-white/10 animate-pulse">
-                <div className="flex gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-white/10" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-white/10 rounded-xl w-3/4" />
-                    <div className="h-3 bg-white/5 rounded-xl w-1/2" />
+              {isFoodCategory && (
+                <div>
+                  <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-1.5">Dietary</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button onClick={() => setDietaryFilters([])}
+                      className={clsx('px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all',
+                        dietaryFilters.length === 0 ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10')}>
+                      All
+                    </button>
+                    {DIETARY_OPTIONS.filter((d) => d.value !== 'none').map((opt) => {
+                      const isActive = dietaryFilters.includes(opt.value as DietaryRestriction);
+                      const isProfilePref = profileDietary.includes(opt.value as DietaryRestriction);
+                      return (
+                        <button key={opt.value} onClick={() => toggleDietary(opt.value as DietaryRestriction)}
+                          className={clsx('flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all',
+                            isActive ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                              : isProfilePref ? 'bg-white/10 border-amber-500/25 text-white/80 hover:bg-amber-500/15'
+                              : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10')}>
+                          <span>{opt.emoji}</span> {opt.label}
+                          {isProfilePref && !isActive && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 opacity-60" />}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              )}
 
-        {mapsReady && !isSearching && filteredSortedPlaces.length === 0 && (
-          <div className="glass rounded-3xl p-8 text-center">
-            <Compass size={36} className="text-white/20 mx-auto mb-3" />
-            <p className="text-white/50 text-sm">
-              {places.length > 0
-                ? 'No places match your current filters. Try adjusting or clearing them.'
-                : 'No places found. Try a different category or search for a new city above.'}
-            </p>
-            {places.length > 0 && (
-              <button onClick={resetAll}
-                className="mt-3 text-violet-400 text-sm font-semibold hover:text-violet-300 transition-colors">
-                Clear all filters
+              {activeFilterCount > 0 && (
+                <button onClick={resetAll} className="text-[11px] text-white/40 hover:text-white/70 transition-colors underline underline-offset-2">
+                  Reset all
+                </button>
+              )}
+            </div>
+          )}
+
+          {!mapsReady && geoStatus !== 'loading' && (
+            <div className="glass rounded-3xl p-6 text-center">
+              <Compass size={28} className="text-white/20 mx-auto mb-2" />
+              <p className="text-white font-bold text-sm mb-1">API Key Required</p>
+              <p className="text-white/50 text-xs mb-3">Add your Google Maps API key in Profile.</p>
+              <a href="/profile" className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-xs">Go to Profile →</a>
+            </div>
+          )}
+
+          {mapsReady && isSearching && places.length === 0 && (
+            <div className="space-y-2">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="glass rounded-2xl p-3 border border-white/10 animate-pulse">
+                  <div className="flex gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-white/10 shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 bg-white/10 rounded-xl w-3/4" />
+                      <div className="h-2 bg-white/5 rounded-xl w-1/2" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {mapsReady && !isSearching && filteredSortedPlaces.length === 0 && (
+            <div className="glass rounded-2xl p-6 text-center">
+              <Compass size={28} className="text-white/20 mx-auto mb-2" />
+              <p className="text-white/50 text-xs">
+                {places.length > 0 ? 'No places match filters.' : 'No places found. Try a different category.'}
+              </p>
+              {places.length > 0 && (
+                <button onClick={resetAll} className="mt-2 text-violet-400 text-xs font-semibold hover:text-violet-300 transition-colors">
+                  Clear filters
+                </button>
+              )}
+            </div>
+          )}
+
+          {mapsReady && filteredSortedPlaces.length > 0 && (
+            <div className="space-y-2.5">
+              {filteredSortedPlaces.map((place, i) => (
+                <div key={place.id} id={`place-${place.id}`}>
+                  <ActivityCard
+                    activity={place}
+                    index={i}
+                    isSelected={popupActivity?.id === place.id}
+                    onClick={() => handleCardClick(place)}
+                    onSaveToTrip={() => setModalActivity(place)}
+                    showSaveButton
+                  />
+                </div>
+              ))}
+              {isLoadingMore && (
+                <div className="flex items-center justify-center gap-2 py-3 text-white/40 text-xs">
+                  <Loader2 size={12} className="animate-spin text-violet-400" />
+                  Loading more…
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── RIGHT: frozen search + map ─────────────────────────────────────── */}
+      <div className="w-[52%] flex-shrink-0 flex flex-col overflow-hidden">
+
+        {/* Header + search bar */}
+        <div className="px-4 pt-12 pb-2">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h1 className="text-xl font-extrabold text-white tracking-tight">Explore</h1>
+              <p className="text-slate-400 text-xs mt-0.5">{subtitleText()}</p>
+            </div>
+            {geoStatus === 'ok' && (
+              <button onClick={handleRecenter}
+                className="w-9 h-9 rounded-2xl glass flex items-center justify-center text-violet-400 hover:text-violet-300 transition-all"
+                title="Back to my location">
+                <Navigation size={16} />
               </button>
             )}
           </div>
-        )}
-
-        {mapsReady && filteredSortedPlaces.length > 0 && (
-          <div className="space-y-3">
-            {filteredSortedPlaces.map((place, i) => (
-              <div key={place.id} id={`place-${place.id}`}>
-                <ActivityCard
-                  activity={place}
-                  index={i}
-                  isSelected={popupActivity?.id === place.id}
-                  onClick={() => handleCardClick(place)}
-                  onSaveToTrip={() => setModalActivity(place)}
-                  showSaveButton
-                />
-              </div>
-            ))}
-            {isLoadingMore && (
-              <div className="flex items-center justify-center gap-2 py-4 text-white/40 text-sm">
-                <Loader2 size={14} className="animate-spin text-violet-400" />
-                Loading more places…
-              </div>
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search city or place…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-8 py-2.5 rounded-2xl glass border border-white/10 text-white placeholder-white/40 text-sm font-medium focus:outline-none focus:border-violet-500/50 transition-all"
+            />
+            {searchQuery && (
+              <button onClick={handleClearSearch}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors">
+                <X size={13} />
+              </button>
             )}
           </div>
-        )}
+        </div>
+
+        {/* Category filter chips */}
+        <div className="flex gap-1.5 overflow-x-auto scroll-hidden px-4 pb-2">
+          {FILTER_TYPES.map((f) => {
+            const isPersonalized = profileInterests.some((i) => INTEREST_TO_FILTER[i] === f.label);
+            return (
+              <button key={f.label} onClick={() => setFilter(f.label)}
+                className={clsx(
+                  'flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all',
+                  filter === f.label
+                    ? 'bg-violet-100 border-violet-400/60 text-violet-700'
+                    : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/20 hover:text-white',
+                )}>
+                <span>{f.emoji}</span>
+                {f.label}
+                {isPersonalized && filter !== f.label && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-violet-400 opacity-70" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Map — fills remaining height */}
+        <div className="flex-1 min-h-0 px-4 pb-4 relative">
+          {mapCenter ? (
+            <TripMap
+              accommodation={centerPin}
+              activities={mapActivities}
+              height="100%"
+              showRoute={false}
+              autoFitBounds={false}
+              uniformMarkerColor={EXPLORE_MARKER_COLOR}
+              centerOverride={mapCenterOverride}
+              onMapIdle={handleMapIdle}
+              onMarkerClick={handleCardClick}
+            />
+          ) : (
+            <div className="h-full map-container flex items-center justify-center glass">
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 size={22} className="text-violet-400 animate-spin" />
+                <p className="text-white/50 text-sm">Detecting location…</p>
+              </div>
+            </div>
+          )}
+
+          {showSearchHere && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10">
+              <button onClick={handleSearchHere}
+                className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-slate-900/95 border border-white/10 text-white text-sm font-semibold shadow-card-hover backdrop-blur-sm">
+                <RefreshCw size={13} className="text-violet-400" />
+                Search this area
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {modalActivity && (
