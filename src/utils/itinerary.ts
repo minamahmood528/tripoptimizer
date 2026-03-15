@@ -78,6 +78,37 @@ const PLACE_COUNTS: Record<NonNullable<UserPreferences['pacePreference']>, numbe
   relaxed: 4, moderate: 6, packed: 8,
 };
 
+// ─── Dietary Hard-Filter ──────────────────────────────────────────────────────
+
+const ALCOHOL_KEYWORDS = ['alcohol', 'beer', 'wine', 'cocktail', 'cocktails', 'craft beer', 'craft drinks', 'spirits', 'pub', 'brewery', 'winery'];
+const ALCOHOL_TYPES = ['bar', 'nightclub'];
+
+function filterByDietary(pool: Activity[], dietary: string[] | undefined): Activity[] {
+  if (!dietary?.length || dietary.includes('none')) return pool;
+
+  const isHalalOrKosher = dietary.some(d => d === 'halal' || d === 'kosher');
+  const isVegan = dietary.includes('vegan');
+  const isVegetarian = dietary.includes('vegetarian') || isVegan;
+
+  return pool.filter(p => {
+    const tags = p.tags.join(' ').toLowerCase();
+    const name = p.name.toLowerCase();
+
+    // Hard-exclude alcohol venues for halal/kosher
+    if (isHalalOrKosher) {
+      if (ALCOHOL_TYPES.includes(p.type)) return false;
+      if (ALCOHOL_KEYWORDS.some(kw => tags.includes(kw) || name.includes(kw))) return false;
+    }
+
+    // Exclude meat-heavy places for vegan/vegetarian (only if explicitly tagged)
+    if (isVegetarian) {
+      if (tags.includes('meat') || tags.includes('bbq') || tags.includes('steakhouse')) return false;
+    }
+
+    return true;
+  });
+}
+
 const THEMES: ItineraryTheme[] = [
   'classic_tourist', 'culture_art', 'foodie', 'local_life', 'adventure_nightlife',
 ];
@@ -121,7 +152,7 @@ function rankByTheme(places: Activity[], theme: ItineraryTheme): Activity[] {
 // ─── Generic Theme-Specific Fallback Activities ────────────────────────────────
 
 type ActivityTemplate = Omit<Activity,
-  'id' | 'lat' | 'lng' | 'description' | 'rating' | 'reviewCount' |
+  'id' | 'lat' | 'lng' | 'address' | 'description' | 'rating' | 'reviewCount' |
   'photos' | 'distanceFromPrevKm' | 'travelTimeMin' | 'isEssential'
 >;
 
@@ -154,7 +185,7 @@ const THEME_GENERIC: Record<ItineraryTheme, ActivityTemplate[]> = {
     { name: 'Artisan Café & Bakery', type: 'cafe', category: 'food', durationMin: 45, priceLevel: 1, requiresBooking: false, bookingPlatforms: [], tags: ['coffee', 'pastries', 'breakfast'], openingHours: '7:00 AM – 3:00 PM' },
     { name: 'Hands-On Cooking Class', type: 'entertainment', category: 'food', durationMin: 180, priceLevel: 3, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.viator, BOOKING_PLATFORMS.klook], tags: ['cooking', 'hands-on', 'local cuisine'], openingHours: 'Morning & afternoon sessions' },
     { name: 'Evening Night Market', type: 'attraction', category: 'food', durationMin: 120, priceLevel: 1, requiresBooking: false, bookingPlatforms: [BOOKING_PLATFORMS.klook], tags: ['night market', 'street food', 'local atmosphere'], openingHours: '5:00 PM – 11:00 PM' },
-    { name: 'Craft Beer / Wine Bar', type: 'bar', category: 'food', durationMin: 60, priceLevel: 2, requiresBooking: false, bookingPlatforms: [], tags: ['craft drinks', 'local scene', 'casual'], openingHours: '4:00 PM – 12:00 AM' },
+    { name: 'Dessert & Sweets Shop', type: 'cafe', category: 'food', durationMin: 45, priceLevel: 1, requiresBooking: false, bookingPlatforms: [], tags: ['desserts', 'sweets', 'local treats', 'casual'], openingHours: '10:00 AM – 10:00 PM' },
   ],
   local_life: [
     { name: 'Neighbourhood Walk & Explore', type: 'attraction', category: 'local_life', durationMin: 90, priceLevel: 0, requiresBooking: false, bookingPlatforms: [], tags: ['local streets', 'hidden gems', 'free'], openingHours: 'Open 24h' },
@@ -198,6 +229,7 @@ function buildGenericActivities(
     return {
       ...t,
       id: `gen-${theme}-${i}`,
+      address: cityName,
       lat: center.lat + dLat,
       lng: center.lng + dLng,
       description: `${t.name} — a top ${theme.replace(/_/g, ' ')} experience in ${cityName}.`,
@@ -259,15 +291,8 @@ export async function generateItineraryOptionsAsync(
       // For real Google Places data, rank by theme relevance within the results
       if (hasApiKey) pool = rankByTheme(pool, theme);
 
-      // Apply dietary filter for food options
-      if (prefs.dietaryRestrictions?.length && !prefs.dietaryRestrictions.includes('none')) {
-        const dietary = pool.filter(p => {
-          if (p.category !== 'food') return true;
-          const tags = p.tags.join(' ').toLowerCase();
-          return prefs.dietaryRestrictions.some(d => tags.includes(d.replace('_', '-')));
-        });
-        if (dietary.length >= 2) pool = dietary;
-      }
+      // Apply dietary hard-filter (halal/kosher/vegan/vegetarian)
+      pool = filterByDietary(pool, prefs.dietaryRestrictions);
 
       const selected = pool.slice(0, maxPlaces);
       const optimised = nearestNeighbour(center, selected);
@@ -321,8 +346,11 @@ export function generateItineraryOptions(
       ? rankByTheme(cityPlaces, theme)
       : buildGenericActivities(theme, center, cityName);
 
-    // Filter previously visited
-    const available = themePool.filter(p => !previouslyVisited.includes(p.id));
+    // Filter previously visited + dietary restrictions
+    const available = filterByDietary(
+      themePool.filter(p => !previouslyVisited.includes(p.id)),
+      prefs.dietaryRestrictions,
+    );
     const selected = available.slice(0, maxPlaces);
     const optimised = nearestNeighbour(center, selected);
 

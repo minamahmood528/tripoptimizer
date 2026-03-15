@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Hotel, RotateCcw, Sparkles } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp, Hotel, RotateCcw, Sparkles } from 'lucide-react';
 import { useTrips } from '../context/TripContext';
 import { useAuth } from '../context/AuthContext';
 import ActivityCard from '../components/cards/ActivityCard';
@@ -11,6 +11,32 @@ import type { Activity, ItineraryOption, CityEntry, ItineraryDay } from '../type
 import clsx from 'clsx';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Returns true = open, false = likely closed, null = can't determine */
+function isOpenAtArrival(openingHours: string | undefined, arrivalTime: string): boolean | null {
+  if (!openingHours) return null;
+  const lower = openingHours.toLowerCase();
+  if (lower.includes('24') || lower.includes('always open')) return true;
+
+  const match = openingHours.match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s*[–\-]\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+  if (!match) return null;
+
+  const toMin = (h: string, m: string, ap: string) => {
+    let hour = parseInt(h);
+    const ampm = ap.toUpperCase();
+    if (ampm === 'PM' && hour !== 12) hour += 12;
+    if (ampm === 'AM' && hour === 12) hour = 0;
+    return hour * 60 + parseInt(m);
+  };
+
+  const openMin = toMin(match[1], match[2], match[3]);
+  const closeMin = toMin(match[4], match[5], match[6]);
+  const [ah, am] = arrivalTime.split(':').map(Number);
+  const arrivalMin = (ah ?? 0) * 60 + (am ?? 0);
+  return arrivalMin >= openMin && arrivalMin < closeMin;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -337,34 +363,24 @@ export default function TripDetailPage() {
                     <span className="text-white/30 text-xs ml-auto">{visibleActivities.length} stops</span>
                   </div>
 
-                  {/* Hours Outside Selector */}
-                  <div className="flex items-center gap-2 mb-4 flex-wrap">
+                  {/* Hours Outside Stepper */}
+                  <div className="flex items-center gap-3 mb-4">
                     <span className="text-white/40 text-xs font-medium">⏰ Time outside:</span>
-                    <div className="flex gap-1.5 flex-wrap">
-                      {[4, 6, 8, 10].map(h => (
-                        <button
-                          key={h}
-                          onClick={() => setHoursOutside(hoursOutside === h ? null : h)}
-                          className={clsx(
-                            'px-2.5 py-1 rounded-lg text-xs font-semibold transition-all border',
-                            hoursOutside === h
-                              ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300'
-                              : 'glass border-white/10 text-white/40 hover:text-white/70',
-                          )}
-                        >
-                          {h}h
-                        </button>
-                      ))}
+                    <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => setHoursOutside(null)}
-                        className={clsx(
-                          'px-2.5 py-1 rounded-lg text-xs font-semibold transition-all border',
-                          !hoursOutside
-                            ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300'
-                            : 'glass border-white/10 text-white/40 hover:text-white/70',
-                        )}
+                        onClick={() => setHoursOutside(h => h === null ? 16 : Math.max(1, h - 1))}
+                        className="w-7 h-7 rounded-lg bg-slate-700 border border-slate-600 flex items-center justify-center text-slate-300 hover:text-white hover:border-slate-400 transition-all"
                       >
-                        Full Day
+                        <ChevronDown size={14} />
+                      </button>
+                      <span className="text-white font-bold text-sm min-w-[64px] text-center">
+                        {hoursOutside ? `${hoursOutside}h` : 'Full Day'}
+                      </span>
+                      <button
+                        onClick={() => setHoursOutside(h => h === null ? null : h >= 16 ? null : h + 1)}
+                        className="w-7 h-7 rounded-lg bg-slate-700 border border-slate-600 flex items-center justify-center text-slate-300 hover:text-white hover:border-slate-400 transition-all"
+                      >
+                        <ChevronUp size={14} />
                       </button>
                     </div>
                   </div>
@@ -419,7 +435,15 @@ export default function TripDetailPage() {
                           </div>
                           <div className="flex-1 min-w-0 pb-2">
                             {act.arrivalTime && (
-                              <p className="text-white/35 text-[11px] mb-1">{act.arrivalTime} – {act.departureTime}</p>
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <p className="text-white/35 text-[11px]">{act.arrivalTime} – {act.departureTime}</p>
+                                {act.openingHours && isOpenAtArrival(act.openingHours, act.arrivalTime) === false && (
+                                  <span className="text-amber-400/80 text-[10px] font-semibold">⚠️ May be closed</span>
+                                )}
+                                {act.openingHours && isOpenAtArrival(act.openingHours, act.arrivalTime) === true && (
+                                  <span className="text-emerald-400/60 text-[10px]">✓ Open</span>
+                                )}
+                              </div>
                             )}
                             <ActivityCard
                               activity={act}
