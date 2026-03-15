@@ -134,22 +134,27 @@ export default function ExplorePage() {
   const togglePrice = (val: number) =>
     setPriceFilters((prev) => prev.includes(val) ? prev.filter((p) => p !== val) : [...prev, val]);
 
-  // Build keyword string from multiple dietary selections
-  const buildDietaryKeyword = (diets: DietaryRestriction[]): string | undefined => {
-    const keywords = diets.map((d) => DIETARY_KEYWORDS[d]).filter(Boolean) as string[];
-    return keywords.length > 0 ? keywords.join(' ') : undefined;
-  };
-
   // Clear dietary when leaving food categories
   useEffect(() => {
     if (!FOOD_CATEGORIES.has(filter)) setDietaryFilters([]);
   }, [filter]);
 
   // ── Derived: filtered + sorted places ─────────────────────────────────────
+  const isFoodCategoryForMemo = FOOD_CATEGORIES.has(filter);
   const filteredSortedPlaces = useMemo(() => {
     let result = [...places];
     if (priceFilters.length > 0) result = result.filter((p) => priceFilters.includes(p.priceLevel));
     if (minRating > 0) result = result.filter((p) => p.rating >= minRating);
+    // Dietary: client-side filter by name/address keywords (avoids sparse API keyword search)
+    if (dietaryFilters.length > 0 && isFoodCategoryForMemo) {
+      result = result.filter((p) => {
+        const haystack = (p.name + ' ' + p.address).toLowerCase();
+        return dietaryFilters.some((d) => {
+          const kw = DIETARY_KEYWORDS[d];
+          return kw ? haystack.includes(kw.toLowerCase()) : false;
+        });
+      });
+    }
     switch (sortBy) {
       case 'top_rated':     result.sort((a, b) => b.rating - a.rating); break;
       case 'most_reviewed': result.sort((a, b) => b.reviewCount - a.reviewCount); break;
@@ -162,7 +167,7 @@ export default function ExplorePage() {
         break;
     }
     return result;
-  }, [places, sortBy, priceFilters, minRating, searchCenter]);
+  }, [places, sortBy, priceFilters, minRating, searchCenter, dietaryFilters, isFoodCategoryForMemo]);
 
   // Stable memoized references so TripMap doesn't redraw markers on every render
   const mapActivities = useMemo(
@@ -174,13 +179,23 @@ export default function ExplorePage() {
     [popupActivity],
   );
 
-  // Only show price options that actually appear in current results
-  const availablePriceLevels = useMemo(
-    () => new Set(places.map((p) => p.priceLevel)),
+  // Counts per price level and rating threshold — shown on filter buttons
+  const priceLevelCounts = useMemo(
+    () => PRICE_OPTIONS.reduce((acc, opt) => {
+      acc[opt.value] = places.filter((p) => p.priceLevel === opt.value).length;
+      return acc;
+    }, {} as Record<number, number>),
+    [places],
+  );
+  const ratingCounts = useMemo(
+    () => RATING_OPTIONS.filter((o) => o.value > 0).reduce((acc, opt) => {
+      acc[opt.value] = places.filter((p) => p.rating >= opt.value).length;
+      return acc;
+    }, {} as Record<number, number>),
     [places],
   );
 
-  const isFoodCategory = FOOD_CATEGORIES.has(filter);
+  const isFoodCategory = isFoodCategoryForMemo;
   const activeFilterCount =
     (priceFilters.length > 0 ? 1 : 0) +
     (minRating > 0 ? 1 : 0) +
@@ -244,7 +259,7 @@ export default function ExplorePage() {
       setSearchCenter(loc);
       setShowSearchHere(false);
       setPopupActivity(null);
-      doSearch(loc, getTypes(filter), buildDietaryKeyword(dietaryFilters));
+      doSearch(loc, getTypes(filter));
     });
     autocompleteRef.current = ac;
   }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -288,18 +303,13 @@ export default function ExplorePage() {
     if (!isLoaded || !searchCenter) return;
     if (initialSearchDone.current) return;
     initialSearchDone.current = true;
-    doSearch(searchCenter, getTypes(filter), buildDietaryKeyword(dietaryFilters));
+    doSearch(searchCenter, getTypes(filter));
   }, [isLoaded, searchCenter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isLoaded || !searchCenter) return;
-    doSearch(searchCenter, getTypes(filter), buildDietaryKeyword(dietaryFilters));
+    doSearch(searchCenter, getTypes(filter));
   }, [filter]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!isLoaded || !searchCenter) return;
-    doSearch(searchCenter, getTypes(filter), buildDietaryKeyword(dietaryFilters));
-  }, [dietaryFilters]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 4. Map controls ───────────────────────────────────────────────────────
   const handleMapIdle = useCallback((center: LatLng) => {
@@ -311,7 +321,7 @@ export default function ExplorePage() {
   const handleSearchHere = () => {
     if (!pendingCenter) return;
     setSearchCenter(pendingCenter);
-    doSearch(pendingCenter, getTypes(filter), buildDietaryKeyword(dietaryFilters));
+    doSearch(pendingCenter, getTypes(filter));
     setShowSearchHere(false);
   };
 
@@ -321,7 +331,7 @@ export default function ExplorePage() {
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setMapCenter(loc); setSearchCenter(loc); setSearchQuery('');
-        doSearch(loc, getTypes(filter), buildDietaryKeyword(dietaryFilters));
+        doSearch(loc, getTypes(filter));
       },
       () => {},
       { timeout: 5000 },
@@ -439,11 +449,12 @@ export default function ExplorePage() {
                       priceFilters.length === 0 ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10')}>
                     All
                   </button>
-                  {PRICE_OPTIONS.filter((opt) => availablePriceLevels.has(opt.value)).map((opt) => (
+                  {PRICE_OPTIONS.filter((opt) => (priceLevelCounts[opt.value] ?? 0) > 0 || priceFilters.includes(opt.value)).map((opt) => (
                     <button key={opt.value} onClick={() => togglePrice(opt.value)}
-                      className={clsx('px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all',
+                      className={clsx('flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all',
                         priceFilters.includes(opt.value) ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10')}>
                       {opt.label}
+                      <span className="text-[9px] opacity-50">({priceLevelCounts[opt.value] ?? 0})</span>
                     </button>
                   ))}
                 </div>
@@ -458,6 +469,9 @@ export default function ExplorePage() {
                         minRating === opt.value ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10')}>
                       {opt.value > 0 && <Star size={9} className="text-amber-400 fill-amber-400" />}
                       {opt.label}
+                      {opt.value > 0 && places.length > 0 && (
+                        <span className="text-[9px] opacity-50">({ratingCounts[opt.value] ?? 0})</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -523,17 +537,23 @@ export default function ExplorePage() {
             </div>
           )}
 
-          {mapsReady && !isSearching && filteredSortedPlaces.length === 0 && (
+          {mapsReady && !isSearching && !isLoadingMore && filteredSortedPlaces.length === 0 && (
             <div className="glass rounded-2xl p-6 text-center">
               <Compass size={28} className="text-white/20 mx-auto mb-2" />
               <p className="text-white/50 text-xs">
-                {places.length > 0 ? 'No places match filters.' : 'No places found. Try a different category.'}
+                {places.length > 0 ? 'No places match your filters.' : 'No places found. Try a different category.'}
               </p>
               {places.length > 0 && (
                 <button onClick={resetAll} className="mt-2 text-violet-400 text-xs font-semibold hover:text-violet-300 transition-colors">
                   Clear filters
                 </button>
               )}
+            </div>
+          )}
+          {mapsReady && !isSearching && isLoadingMore && filteredSortedPlaces.length === 0 && (
+            <div className="flex items-center justify-center gap-2 py-6 text-white/40 text-xs">
+              <Loader2 size={13} className="animate-spin text-violet-400" />
+              Searching for more results…
             </div>
           )}
 
