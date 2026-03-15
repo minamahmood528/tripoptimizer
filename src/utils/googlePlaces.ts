@@ -231,11 +231,39 @@ export function streamNearbyPlaces(
   service.nearbySearch({ location: center, radius, type: type as any }, handle);
 }
 
+// ─── City Bounds Helper ───────────────────────────────────────────────────────
+
+interface SimpleBounds { north: number; south: number; east: number; west: number }
+
+function getCityBoundsFromGeocoder(center: LatLng): Promise<SimpleBounds | null> {
+  return new Promise((resolve) => {
+    new window.google.maps.Geocoder().geocode({ location: center }, (results, status) => {
+      if (status !== 'OK' || !results) { resolve(null); return; }
+      // Prefer the most specific city-level result
+      for (const typeKey of ['locality', 'administrative_area_level_2', 'administrative_area_level_1']) {
+        const r = results.find((res) => res.types.includes(typeKey));
+        const b = r?.geometry?.bounds ?? r?.geometry?.viewport;
+        if (b) {
+          resolve({
+            north: b.getNorthEast().lat(),
+            south: b.getSouthWest().lat(),
+            east:  b.getNorthEast().lng(),
+            west:  b.getSouthWest().lng(),
+          });
+          return;
+        }
+      }
+      resolve(null);
+    });
+  });
+}
+
 // ─── City-wide Grid Search (Explore page) ────────────────────────────────────
-// Runs 5 parallel searches across a cross-shaped grid (center + N/S/E/W)
-// so every part of the city is covered, not just the famous downtown cluster.
-// Each zone uses a 10 km radius; zones are offset ~7 km so they overlap.
-// Total: up to 5 × 20 = 100 unique results, arriving in parallel.
+// 1. Geocodes the center to get the real city boundary box.
+// 2. Divides that box into up to a 3×3 grid (capped at 9 zones).
+// 3. Fires all zone searches in parallel — results trickle in as batches.
+// 4. Filters results to stay within city bounds.
+// Fallback: fixed 5-zone cross grid when geocoding fails.
 
 export function streamCitywidePlaces(
   center: LatLng,
@@ -245,39 +273,87 @@ export function streamCitywidePlaces(
 ): void {
   if (!window.google?.maps?.places) { onComplete(); return; }
 
-  // Offsets: ~7 km in lat/lng degrees (0.063° lat ≈ 7 km; 0.09° lng ≈ 7 km at mid-lat)
-  const DL = 0.063;
-  const DG = 0.09;
-  const zones: LatLng[] = [
-    center,
-    { lat: center.lat + DL, lng: center.lng },         // North
-    { lat: center.lat - DL, lng: center.lng },         // South
-    { lat: center.lat,       lng: center.lng + DG },   // East
-    { lat: center.lat,       lng: center.lng - DG },   // West
-  ];
+  getCityBoundsFromGeocoder(center).then((bounds) => {
+    // Build zone grid from real city bounds
+    type Zone = { center: LatLng; radius: number };
+    let zones: Zone[];
 
-  const seen = new Set<string>();
-  let completedZones = 0;
+    if (bounds) {
+      const latRange = bounds.north - bounds.south;
+      const lngRange = bounds.east - bounds.west;
+      const midLat = (bounds.north + bounds.south) / 2;
+      const kmPerLat = 111;
+      const kmPerLng = 111 * Math.cos(midLat * Math.PI / 180);
+      const cityH = latRange * kmPerLat;
+      const cityW = Math.abs(lngRange) * kmPerLng;
 
-  zones.forEach((zoneCenter) => {
-    const service = new window.google.maps.places.PlacesService(document.createElement('div'));
-    service.nearbySearch(
-      { location: zoneCenter, radius: 10000, type: type as any },
-      (res, status) => {
-        if (status === window.google.maps.places.PlacesServiceStatus.OK && res) {
-          const fresh = res
-            .filter((p) => p.geometry?.location && p.name && !seen.has(p.place_id ?? ''))
-            .map((p) => {
-              seen.add(p.place_id ?? `${p.name}_${Math.random()}`);
-              return placeToActivity(p, 0, {} as UserPreferences);
-            })
-            .filter((a): a is Activity => a !== null);
-          if (fresh.length > 0) onBatch(fresh);
+      // Target ~10 km cells, cap at 3×3
+      const rows = Math.max(1, Math.min(3, Math.round(cityH / 10)));
+      const cols = Math.max(1, Math.min(3, Math.round(cityW / 10)));
+      const dLat = latRange / rows;
+      const dLng = lngRange / cols;
+      // Radius = half diagonal of cell + 15% overlap buffer
+      const halfDiagKm = Math.sqrt((dLat * kmPerLat) ** 2 + (dLng * kmPerLng) ** 2) / 2;
+      const radius = Math.max(5000, Math.min(50000, Math.ceil(halfDiagKm * 1150)));
+
+      zones = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          zones.push({
+            center: {
+              lat: bounds.south + dLat * (r + 0.5),
+              lng: bounds.west  + dLng * (c + 0.5),
+            },
+            radius,
+          });
         }
-        completedZones++;
-        if (completedZones === zones.length) onComplete();
-      },
-    );
+      }
+    } else {
+      // Fallback: fixed cross grid
+      const DL = 0.063; const DG = 0.09;
+      zones = [
+        { center, radius: 10000 },
+        { center: { lat: center.lat + DL, lng: center.lng }, radius: 10000 },
+        { center: { lat: center.lat - DL, lng: center.lng }, radius: 10000 },
+        { center: { lat: center.lat, lng: center.lng + DG }, radius: 10000 },
+        { center: { lat: center.lat, lng: center.lng - DG }, radius: 10000 },
+      ];
+    }
+
+    const seen = new Set<string>();
+    let completedZones = 0;
+
+    zones.forEach(({ center: zoneCenter, radius }) => {
+      const service = new window.google.maps.places.PlacesService(document.createElement('div'));
+      service.nearbySearch(
+        { location: zoneCenter, radius, type: type as any },
+        (res, status) => {
+          if (status === window.google.maps.places.PlacesServiceStatus.OK && res) {
+            const fresh = res
+              .filter((p) => {
+                if (!p.geometry?.location || !p.name) return false;
+                if (seen.has(p.place_id ?? '')) return false;
+                // Keep only places inside the city bounds (when known)
+                if (bounds) {
+                  const lat = p.geometry.location.lat();
+                  const lng = p.geometry.location.lng();
+                  if (lat < bounds.south || lat > bounds.north ||
+                      lng < bounds.west  || lng > bounds.east) return false;
+                }
+                return true;
+              })
+              .map((p) => {
+                seen.add(p.place_id ?? `${p.name}_${Math.random()}`);
+                return placeToActivity(p, 0, {} as UserPreferences);
+              })
+              .filter((a): a is Activity => a !== null);
+            if (fresh.length > 0) onBatch(fresh);
+          }
+          completedZones++;
+          if (completedZones === zones.length) onComplete();
+        },
+      );
+    });
   });
 }
 
