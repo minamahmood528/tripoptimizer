@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Compass, Loader2, RefreshCw, Navigation, Search, X, Star, ArrowUpDown, ChevronDown } from 'lucide-react';
 import { useAuth, DIETARY_OPTIONS } from '../context/AuthContext';
 import { streamCitywidePlaces } from '../utils/googlePlaces';
-import { getPriceLevelLabel } from '../utils/itinerary';
 import TripMap from '../components/maps/TripMap';
 import ActivityCard from '../components/cards/ActivityCard';
 import AddToTripModal from '../components/explore/AddToTripModal';
@@ -419,6 +418,7 @@ export default function ExplorePage() {
             showRoute={false}
             autoFitBounds={false}
             uniformMarkerColor={EXPLORE_MARKER_COLOR}
+            centerOverride={popupActivity ? { lat: popupActivity.lat, lng: popupActivity.lng } : null}
             onMapIdle={handleMapIdle}
             onMarkerClick={(act) => setPopupActivity((prev) => prev?.id === act.id ? null : act)}
           />

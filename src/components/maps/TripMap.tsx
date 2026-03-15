@@ -14,6 +14,8 @@ interface TripMapProps {
   uniformMarkerColor?: string;
   /** Set false to let the user control zoom freely (Explore mode). Default true. */
   autoFitBounds?: boolean;
+  /** Pan + zoom the map to this location without recreating it */
+  centerOverride?: LatLng | null;
   onMarkerClick?: (activity: Activity) => void;
   onMapIdle?: (center: LatLng) => void;
 }
@@ -28,7 +30,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   essential: '#EF4444',
 };
 
-export default function TripMap({ accommodation, activities, height = '400px', showRoute = true, uniformMarkerColor, autoFitBounds = true, onMarkerClick, onMapIdle }: TripMapProps) {
+export default function TripMap({ accommodation, activities, height = '400px', showRoute = true, uniformMarkerColor, autoFitBounds = true, centerOverride, onMarkerClick, onMapIdle }: TripMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
@@ -186,6 +188,14 @@ export default function TripMap({ accommodation, activities, height = '400px', s
       map.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
     }
   }, [isLoaded, activities, accommodation, onMarkerClick, showRoute, autoFitBounds]);
+
+  // Pan to selected place and ensure it's visible at a reasonable zoom
+  useEffect(() => {
+    if (!mapInstanceRef.current || !centerOverride) return;
+    mapInstanceRef.current.panTo({ lat: centerOverride.lat, lng: centerOverride.lng });
+    const zoom = mapInstanceRef.current.getZoom() ?? 14;
+    if (zoom < 14) mapInstanceRef.current.setZoom(14);
+  }, [centerOverride]);
 
   if (!apiKey) {
     return (
