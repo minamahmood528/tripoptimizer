@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Compass, Loader2, RefreshCw, Navigation, Search, X, Star, ArrowUpDown, ChevronDown } from 'lucide-react';
 import { useAuth, DIETARY_OPTIONS } from '../context/AuthContext';
-import { streamCitywidePlaces, getDirections } from '../utils/googlePlaces';
+import { streamCitywidePlaces } from '../utils/googlePlaces';
 import { getPriceLevelLabel } from '../utils/itinerary';
 import TripMap from '../components/maps/TripMap';
 import ActivityCard from '../components/cards/ActivityCard';
@@ -118,50 +118,15 @@ export default function ExplorePage() {
   const [popupActivity, setPopupActivity] = useState<Activity | null>(null);
   const [modalActivity, setModalActivity] = useState<Activity | null>(null);
 
-  // Travel time
-  const [userGpsLocation, setUserGpsLocation] = useState<LatLng | null>(null);
-  type TravelModeKey = 'WALKING' | 'DRIVING' | 'TRANSIT' | 'BICYCLING';
-  const [travelMode, setTravelMode] = useState<TravelModeKey>('WALKING');
-  const [travelTimes, setTravelTimes] = useState<Partial<Record<TravelModeKey, number | null>>>({});
-  const [travelLoading, setTravelLoading] = useState(false);
-
   const initialSearchDone = useRef(false);
   const searchAbortRef = useRef(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Fetch travel times for all modes from user GPS to selected place
-  const fetchTravelTimes = useCallback(async (destination: LatLng, fromLoc: LatLng) => {
-    setTravelLoading(true);
-    setTravelTimes({});
-    const modes: TravelModeKey[] = ['WALKING', 'DRIVING', 'TRANSIT', 'BICYCLING'];
-    const results: Partial<Record<TravelModeKey, number | null>> = {};
-    await Promise.all(
-      modes.map(async (mode) => {
-        try {
-          const res = await getDirections([fromLoc, destination], mode === 'BICYCLING' ? 'DRIVING' : mode);
-          results[mode] = res?.totalMin ?? null;
-        } catch {
-          results[mode] = null;
-        }
-      }),
-    );
-    setTravelTimes(results);
-    setTravelLoading(false);
-  }, []);
-
   const handleCardClick = useCallback((place: Activity) => {
-    setPopupActivity((prev) => {
-      const next = prev?.id === place.id ? null : place;
-      if (next && userGpsLocation) {
-        fetchTravelTimes({ lat: next.lat, lng: next.lng }, userGpsLocation);
-      } else if (next) {
-        setTravelTimes({});
-      }
-      return next;
-    });
-  }, [userGpsLocation, fetchTravelTimes]);
+    setPopupActivity((prev) => prev?.id === place.id ? null : place);
+  }, []);
 
   // Multi-select toggle helpers
   const toggleDietary = (val: DietaryRestriction) =>
@@ -234,7 +199,6 @@ export default function ExplorePage() {
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setMapCenter(loc); setSearchCenter(loc); setGeoStatus('ok');
-        setUserGpsLocation(loc);
         if (window.google?.maps) {
           new window.google.maps.Geocoder().geocode({ location: loc }, (results, status) => {
             if (status === 'OK' && results?.[0]) {
@@ -696,68 +660,18 @@ export default function ExplorePage() {
 
         {mapsReady && filteredSortedPlaces.length > 0 && (
           <div className="space-y-3">
-            {filteredSortedPlaces.map((place, i) => {
-              const isSelected = popupActivity?.id === place.id;
-              return (
-                <div key={place.id} id={`place-${place.id}`}>
-                  <ActivityCard
-                    activity={place}
-                    index={i}
-                    isSelected={isSelected}
-                    onClick={() => handleCardClick(place)}
-                    onSaveToTrip={() => setModalActivity(place)}
-                    showSaveButton
-                  />
-                  {/* Travel time panel — only for the selected card */}
-                  {isSelected && (
-                    <div className="mt-2 glass rounded-2xl border border-white/10 p-3 animate-fade-in">
-                      <p className="text-white/40 text-xs font-bold uppercase tracking-widest mb-2.5">
-                        {userGpsLocation ? 'Travel time from your location' : 'Enable location for travel times'}
-                      </p>
-                      {userGpsLocation ? (
-                        <div className="grid grid-cols-4 gap-2">
-                          {(
-                            [
-                              { mode: 'WALKING' as TravelModeKey,   emoji: '🚶', label: 'Walk'    },
-                              { mode: 'BICYCLING' as TravelModeKey, emoji: '🚲', label: 'Bike'    },
-                              { mode: 'DRIVING' as TravelModeKey,   emoji: '🚗', label: 'Drive'   },
-                              { mode: 'TRANSIT' as TravelModeKey,   emoji: '🚇', label: 'Transit' },
-                            ] as { mode: TravelModeKey; emoji: string; label: string }[]
-                          ).map(({ mode, emoji, label }) => {
-                            const minutes = travelTimes[mode];
-                            const isActive = travelMode === mode;
-                            return (
-                              <button
-                                key={mode}
-                                onClick={() => setTravelMode(mode)}
-                                className={clsx(
-                                  'flex flex-col items-center gap-1 py-2.5 rounded-xl border text-xs font-semibold transition-all',
-                                  isActive
-                                    ? 'bg-violet-500/25 border-violet-500/50 text-violet-200'
-                                    : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white/80',
-                                )}
-                              >
-                                <span className="text-base">{emoji}</span>
-                                {travelLoading ? (
-                                  <Loader2 size={10} className="animate-spin text-violet-400" />
-                                ) : minutes != null ? (
-                                  <span>{minutes < 60 ? `${minutes}m` : `${Math.round(minutes / 60)}h`}</span>
-                                ) : (
-                                  <span className="text-white/30">—</span>
-                                )}
-                                <span className="text-[10px] text-white/40">{label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <p className="text-white/30 text-xs">Grant location access to see travel times.</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {filteredSortedPlaces.map((place, i) => (
+              <div key={place.id} id={`place-${place.id}`}>
+                <ActivityCard
+                  activity={place}
+                  index={i}
+                  isSelected={popupActivity?.id === place.id}
+                  onClick={() => handleCardClick(place)}
+                  onSaveToTrip={() => setModalActivity(place)}
+                  showSaveButton
+                />
+              </div>
+            ))}
             {isLoadingMore && (
               <div className="flex items-center justify-center gap-2 py-4 text-white/40 text-sm">
                 <Loader2 size={14} className="animate-spin text-violet-400" />
