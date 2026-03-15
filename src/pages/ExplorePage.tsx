@@ -38,11 +38,10 @@ const DIETARY_KEYWORDS: Partial<Record<DietaryRestriction, string>> = {
   dairy_free: 'dairy free', nut_free: 'nut free',
 };
 
-type SortOption = 'top_rated' | 'most_reviewed' | 'a_z' | 'z_a' | 'price_low' | 'price_high' | 'nearest';
+type SortOption = 'top_rated' | 'a_z' | 'z_a' | 'price_low' | 'price_high' | 'nearest';
 
 const SORT_OPTIONS: { value: SortOption; label: string; emoji: string }[] = [
   { value: 'top_rated',     label: 'Top Rated',    emoji: '⭐' },
-  { value: 'most_reviewed', label: 'Most Reviews', emoji: '💬' },
   { value: 'nearest',       label: 'Nearest',      emoji: '📍' },
   { value: 'a_z',           label: 'A → Z',        emoji: '🔤' },
   { value: 'z_a',           label: 'Z → A',        emoji: '🔤' },
@@ -157,7 +156,6 @@ export default function ExplorePage() {
     }
     switch (sortBy) {
       case 'top_rated':     result.sort((a, b) => b.rating - a.rating); break;
-      case 'most_reviewed': result.sort((a, b) => b.reviewCount - a.reviewCount); break;
       case 'a_z':           result.sort((a, b) => a.name.localeCompare(b.name)); break;
       case 'z_a':           result.sort((a, b) => b.name.localeCompare(a.name)); break;
       case 'price_low':     result.sort((a, b) => a.priceLevel - b.priceLevel); break;
