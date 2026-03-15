@@ -10,7 +10,7 @@ import ItineraryPage from './pages/ItineraryPage';
 import ExplorePage from './pages/ExplorePage';
 import ProfilePage from './pages/ProfilePage';
 
-const SHOW_NAV_PATHS = ['/dashboard', '/explore', '/map', '/profile', '/trips'];
+const SHOW_NAV_PATHS = ['/dashboard', '/explore', '/profile', '/trips'];
 
 function AppInner() {
   const { user, isLoading } = useAuth();
@@ -25,7 +25,7 @@ function AppInner() {
             ✈️
           </div>
           <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-white/50 text-sm">Loading TripOptimizer...</p>
+          <p className="text-slate-400 text-sm font-medium">Loading TripOptimizer...</p>
         </div>
       </div>
     );
@@ -40,7 +40,6 @@ function AppInner() {
         <Route path="/trips/:id" element={user ? <TripDetailPage /> : <Navigate to="/" replace />} />
         <Route path="/trips/:id/city/:cityId/day/:dayId" element={user ? <ItineraryPage /> : <Navigate to="/" replace />} />
         <Route path="/explore" element={user ? <ExplorePage /> : <Navigate to="/" replace />} />
-        <Route path="/map" element={user ? <ExplorePage /> : <Navigate to="/" replace />} />
         <Route path="/profile" element={user ? <ProfilePage /> : <Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to={user ? '/dashboard' : '/'} replace />} />
       </Routes>

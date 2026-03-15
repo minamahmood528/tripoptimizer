@@ -62,8 +62,8 @@ export default function ExplorePage() {
   return (
     <div className="min-h-screen bg-gradient-hero pb-28 safe-top">
       <div className="px-5 pt-12 pb-4">
-        <h1 className="text-2xl font-black text-white mb-1">Explore Nearby</h1>
-        <p className="text-white/50 text-sm">Discover places around your accommodation</p>
+        <h1 className="text-2xl font-extrabold text-slate-800 mb-1 tracking-tight">Explore Nearby</h1>
+        <p className="text-slate-500 text-sm font-medium">Discover places around your accommodation</p>
       </div>
 
       {/* Filter Chips */}
@@ -75,7 +75,7 @@ export default function ExplorePage() {
             className={clsx(
               'flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium transition-all',
               filter === f.value
-                ? 'bg-violet-500/30 border-violet-500/60 text-violet-200'
+                ? 'bg-violet-100 border-violet-400/60 text-violet-700'
                 : 'glass border-white/10 text-white/60 hover:text-white',
             )}
           >
@@ -126,7 +126,7 @@ export default function ExplorePage() {
           </div>
         ) : places.length > 0 ? (
           <div className="space-y-3">
-            <p className="text-white/50 text-sm">{places.length} places found</p>
+            <p className="text-slate-500 text-sm font-medium">{places.length} places found</p>
             {places.map((place, i) => (
               <ActivityCard key={place.id} activity={place} index={i} />
             ))}

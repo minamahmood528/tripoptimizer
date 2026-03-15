@@ -1,12 +1,11 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Map, PlusCircle, User, Compass } from 'lucide-react';
+import { Home, PlusCircle, User, Compass } from 'lucide-react';
 import clsx from 'clsx';
 
 const NAV_ITEMS = [
   { to: '/dashboard', icon: Home, label: 'Home' },
   { to: '/explore', icon: Compass, label: 'Explore' },
   { to: '/trips/new', icon: PlusCircle, label: 'New Trip', accent: true },
-  { to: '/map', icon: Map, label: 'Map' },
   { to: '/profile', icon: User, label: 'Profile' },
 ];
 

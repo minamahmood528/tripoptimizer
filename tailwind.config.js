@@ -30,12 +30,12 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
       },
       backgroundImage: {
-        'gradient-hero': 'linear-gradient(135deg, #0A0F1E 0%, #1a0533 50%, #0A1628 100%)',
-        'gradient-card': 'linear-gradient(135deg, rgba(124,58,237,0.15) 0%, rgba(6,182,212,0.05) 100%)',
-        'gradient-primary': 'linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)',
+        'gradient-hero': 'linear-gradient(160deg, #EEE9FF 0%, #FAFAFE 45%, #E6F7FD 100%)',
+        'gradient-card': 'linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(6,182,212,0.04) 100%)',
+        'gradient-primary': 'linear-gradient(135deg, #7C3AED 0%, #6366F1 100%)',
         'gradient-teal': 'linear-gradient(135deg, #06B6D4 0%, #7C3AED 100%)',
       },
       animation: {
@@ -51,12 +51,12 @@ export default {
       keyframes: {
         float: {
           '0%, 100%': { transform: 'translateY(0px) rotate(0deg)' },
-          '33%': { transform: 'translateY(-15px) rotate(1deg)' },
-          '66%': { transform: 'translateY(-8px) rotate(-1deg)' },
+          '33%': { transform: 'translateY(-12px) rotate(1deg)' },
+          '66%': { transform: 'translateY(-6px) rotate(-1deg)' },
         },
         pulseGlow: {
-          '0%, 100%': { opacity: '0.4', transform: 'scale(1)' },
-          '50%': { opacity: '0.8', transform: 'scale(1.05)' },
+          '0%, 100%': { opacity: '0.3', transform: 'scale(1)' },
+          '50%': { opacity: '0.6', transform: 'scale(1.04)' },
         },
         slideUp: {
           '0%': { transform: 'translateY(20px)', opacity: '0' },
@@ -76,11 +76,11 @@ export default {
         },
       },
       boxShadow: {
-        'glow-purple': '0 0 30px rgba(124, 58, 237, 0.3)',
-        'glow-teal': '0 0 30px rgba(6, 182, 212, 0.3)',
-        'glow-pink': '0 0 30px rgba(236, 72, 153, 0.3)',
-        'card': '0 4px 24px rgba(0, 0, 0, 0.4)',
-        'card-hover': '0 8px 40px rgba(0, 0, 0, 0.5)',
+        'glow-purple': '0 4px 24px rgba(124, 58, 237, 0.18)',
+        'glow-teal': '0 4px 24px rgba(6, 182, 212, 0.18)',
+        'glow-pink': '0 4px 24px rgba(236, 72, 153, 0.18)',
+        'card': '0 2px 20px rgba(15, 23, 42, 0.08)',
+        'card-hover': '0 8px 36px rgba(15, 23, 42, 0.14)',
       },
     },
   },

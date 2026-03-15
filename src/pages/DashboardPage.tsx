@@ -40,10 +40,10 @@ export default function DashboardPage() {
       <div className="px-5 pt-12 pb-6">
         <div className="flex items-center justify-between mb-1">
           <div>
-            <p className="text-white/50 text-sm">Good {getGreeting()},</p>
-            <h1 className="text-2xl font-black text-white">{user?.name?.split(' ')[0]} 👋</h1>
+            <p className="text-slate-500 text-sm font-medium">Good {getGreeting()},</p>
+            <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">{user?.name?.split(' ')[0]} 👋</h1>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center text-xl shadow-glow-purple">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-xl shadow-glow-purple">
             ✈️
           </div>
         </div>
@@ -78,7 +78,7 @@ export default function DashboardPage() {
         <div className="px-5 mt-8 text-center animate-slide-up">
           <div className="glass rounded-3xl p-10 flex flex-col items-center gap-4">
             <div className="text-6xl animate-float">🌍</div>
-            <h2 className="text-xl font-bold text-white">No trips yet</h2>
+            <h2 className="text-xl font-bold text-white tracking-tight">No trips yet</h2>
             <p className="text-white/50 text-sm leading-relaxed">
               Start planning your first adventure! Add a city, drop your hotel, and get 5 personalized daily routes.
             </p>
@@ -93,7 +93,7 @@ export default function DashboardPage() {
       {upcoming.length > 0 && (
         <section className="px-5 mb-6">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-white font-bold text-lg">Upcoming Trips</h2>
+            <h2 className="text-slate-700 font-extrabold text-lg tracking-tight">Upcoming Trips</h2>
             <button
               onClick={() => navigate('/trips/new')}
               className="w-8 h-8 rounded-xl bg-violet-500/20 flex items-center justify-center text-violet-400 hover:bg-violet-500/30 transition-colors"
@@ -112,7 +112,7 @@ export default function DashboardPage() {
       {/* Past Trips */}
       {past.length > 0 && (
         <section className="px-5 mb-6">
-          <h2 className="text-white font-bold text-lg mb-3">Past Trips</h2>
+          <h2 className="text-slate-700 font-extrabold text-lg mb-3 tracking-tight">Past Trips</h2>
           <div className="space-y-3">
             {past.map((trip) => (
               <TripCard key={trip.id} trip={trip} onOpen={handleOpenTrip} onDelete={deleteTrip} />
@@ -124,7 +124,7 @@ export default function DashboardPage() {
       {/* FAB */}
       <button
         onClick={() => navigate('/trips/new')}
-        className="fixed bottom-24 right-5 w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center shadow-glow-purple z-40 hover:scale-110 active:scale-95 transition-transform"
+        className="fixed bottom-24 right-5 w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-glow-purple z-40 hover:scale-110 active:scale-95 transition-transform"
       >
         <Plus size={24} className="text-white" />
       </button>

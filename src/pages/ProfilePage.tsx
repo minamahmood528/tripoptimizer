@@ -47,8 +47,8 @@ export default function ProfilePage() {
       <div className="px-5 pt-12 pb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-black text-white">Profile</h1>
-            <p className="text-white/50 text-sm">{user?.email}</p>
+            <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Profile</h1>
+            <p className="text-slate-500 text-sm font-medium">{user?.email}</p>
           </div>
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center text-2xl shadow-glow-purple">
             {user?.name?.charAt(0).toUpperCase() ?? '?'}
@@ -60,7 +60,7 @@ export default function ProfilePage() {
 
         {/* Commute Preferences */}
         <section>
-          <h2 className="text-white font-bold mb-3 flex items-center gap-2">
+          <h2 className="text-slate-700 font-extrabold mb-3 flex items-center gap-2 tracking-tight">
             🚌 How do you get around?
           </h2>
           <div className="flex flex-wrap gap-2">
@@ -72,7 +72,7 @@ export default function ProfilePage() {
                   onClick={() => toggle(commute, opt.value, setCommute)}
                   className={clsx(
                     'flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium transition-all',
-                    selected ? 'bg-violet-500/25 border-violet-500/60 text-violet-200' : 'glass border-white/10 text-white/60 hover:text-white',
+                    selected ? 'bg-violet-100 border-violet-400/60 text-violet-700' : 'glass border-white/10 text-white/60 hover:text-white',
                   )}
                 >
                   <span>{opt.emoji}</span>
@@ -86,7 +86,7 @@ export default function ProfilePage() {
 
         {/* Dietary Preferences */}
         <section>
-          <h2 className="text-white font-bold mb-3">🍽️ Dietary Preferences</h2>
+          <h2 className="text-slate-700 font-extrabold mb-3 tracking-tight">🍽️ Dietary Preferences</h2>
           <div className="flex flex-wrap gap-2">
             {DIETARY_OPTIONS.map((opt) => {
               const selected = dietary.includes(opt.value);
@@ -108,7 +108,7 @@ export default function ProfilePage() {
 
         {/* Interests */}
         <section>
-          <h2 className="text-white font-bold mb-3">❤️ Travel Interests</h2>
+          <h2 className="text-slate-700 font-extrabold mb-3 tracking-tight">❤️ Travel Interests</h2>
           <div className="flex flex-wrap gap-2">
             {INTEREST_OPTIONS.map((opt) => {
               const selected = interests.includes(opt.value);
@@ -131,7 +131,7 @@ export default function ProfilePage() {
         {/* Pace & Budget */}
         <section className="grid grid-cols-2 gap-4">
           <div>
-            <h2 className="text-white font-bold mb-3 text-sm">🧘 Pace</h2>
+            <h2 className="text-slate-700 font-extrabold mb-3 text-sm tracking-tight">🧘 Pace</h2>
             <div className="space-y-2">
               {[{ val: 'relaxed', label: 'Relaxed', emoji: '🧘' }, { val: 'moderate', label: 'Moderate', emoji: '🚶' }, { val: 'packed', label: 'Packed', emoji: '🏃' }].map((p) => (
                 <button
@@ -139,7 +139,7 @@ export default function ProfilePage() {
                   onClick={() => setPace(p.val as any)}
                   className={clsx(
                     'w-full flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all',
-                    pace === p.val ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300' : 'glass border-white/10 text-white/60',
+                    pace === p.val ? 'bg-cyan-100 border-cyan-400/60 text-cyan-700' : 'glass border-white/10 text-white/60',
                   )}
                 >
                   <span>{p.emoji}</span> {p.label}
@@ -148,7 +148,7 @@ export default function ProfilePage() {
             </div>
           </div>
           <div>
-            <h2 className="text-white font-bold mb-3 text-sm">💰 Budget</h2>
+            <h2 className="text-slate-700 font-extrabold mb-3 text-sm tracking-tight">💰 Budget</h2>
             <div className="space-y-2">
               {[{ val: 'budget', label: 'Budget', emoji: '💸' }, { val: 'moderate', label: 'Moderate', emoji: '💳' }, { val: 'luxury', label: 'Luxury', emoji: '💎' }].map((b) => (
                 <button
@@ -156,7 +156,7 @@ export default function ProfilePage() {
                   onClick={() => setBudget(b.val as any)}
                   className={clsx(
                     'w-full flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all',
-                    budget === b.val ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' : 'glass border-white/10 text-white/60',
+                    budget === b.val ? 'bg-emerald-100 border-emerald-400/60 text-emerald-700' : 'glass border-white/10 text-white/60',
                   )}
                 >
                   <span>{b.emoji}</span> {b.label}

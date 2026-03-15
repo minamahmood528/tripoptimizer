@@ -27,8 +27,8 @@ export default function TripDetailPage() {
             <ArrowLeft size={18} />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-black text-white truncate">{trip.name}</h1>
-            <p className="text-white/50 text-sm">
+            <h1 className="text-2xl font-extrabold text-slate-800 truncate tracking-tight">{trip.name}</h1>
+            <p className="text-slate-500 text-sm font-medium">
               {trip.cities.length} {trip.cities.length === 1 ? 'city' : 'cities'} · {trip.cities.reduce((s, c) => {
                 try { return s + differenceInDays(parseISO(c.departureDate), parseISO(c.arrivalDate)) + 1; } catch { return s; }
               }, 0)} days
@@ -54,8 +54,8 @@ export default function TripDetailPage() {
                   {city.countryCode}
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-white">{city.name}</h2>
-                  <p className="text-white/50 text-sm">{city.country}</p>
+                  <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">{city.name}</h2>
+                  <p className="text-slate-500 text-sm font-medium">{city.country}</p>
                 </div>
               </div>
 

@@ -41,32 +41,31 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-hero overflow-hidden relative">
-      {/* Animated background orbs */}
-      <div className="orb w-96 h-96 bg-violet-600 top-[-100px] left-[-100px] animate-float" />
-      <div className="orb w-80 h-80 bg-pink-600 bottom-[-50px] right-[-50px] animate-float-delay" />
-      <div className="orb w-64 h-64 bg-cyan-600 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-float-slow" />
+      {/* Subtle background orbs */}
+      <div className="orb w-96 h-96 bg-violet-400 top-[-120px] left-[-120px] opacity-25 animate-float" />
+      <div className="orb w-72 h-72 bg-cyan-300 bottom-[-60px] right-[-60px] opacity-20 animate-float-delay" />
 
       <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-5 py-12">
 
         {/* Logo + Hero */}
         <div className="text-center mb-10 animate-slide-up">
           <div className="inline-flex items-center gap-3 mb-6">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center shadow-glow-purple">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-glow-purple">
               <Plane size={28} className="text-white" />
             </div>
             <div className="text-left">
-              <h1 className="text-2xl font-black text-white leading-none">TripOptimizer</h1>
-              <p className="text-violet-400 text-xs font-medium">Smart Travel Planner</p>
+              <h1 className="text-2xl font-extrabold text-slate-800 leading-none tracking-tight">TripOptimizer</h1>
+              <p className="text-violet-500 text-xs font-bold tracking-widest uppercase">Smart Travel Planner</p>
             </div>
           </div>
 
-          <h2 className="text-4xl sm:text-5xl font-black text-white leading-tight mb-4">
+          <h2 className="text-4xl sm:text-5xl font-extrabold text-slate-800 leading-tight mb-4 tracking-tight">
             Your city,{' '}
             <span className="gradient-text">perfectly</span>
             <br />
             planned. ✈️
           </h2>
-          <p className="text-white/60 text-base max-w-xs mx-auto leading-relaxed">
+          <p className="text-slate-500 text-base max-w-xs mx-auto leading-relaxed font-medium">
             Drop your hotel address and we'll generate 5 optimized daily itineraries — real places, real routes, instant bookings.
           </p>
         </div>
@@ -85,7 +84,7 @@ export default function LandingPage() {
         </div>
 
         {/* Auth Card */}
-        <div className="w-full max-w-sm glass rounded-3xl p-6 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+        <div className="w-full max-w-sm glass rounded-3xl p-6 animate-slide-up shadow-card" style={{ animationDelay: '0.1s' }}>
 
           {/* Mode Toggle */}
           <div className="flex bg-white/5 rounded-2xl p-1 mb-6">
@@ -195,7 +194,7 @@ export default function LandingPage() {
             <div className="flex items-center gap-1">
               {[...Array(5)].map((_, i) => <Star key={i} size={10} className="fill-amber-400 text-amber-400" />)}
             </div>
-            <p className="text-white/50 text-xs">Loved by 2,000+ travellers</p>
+            <p className="text-slate-500 text-xs font-semibold">Loved by 2,000+ travellers</p>
           </div>
         </div>
       </div>

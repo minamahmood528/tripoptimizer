@@ -146,8 +146,8 @@ export default function NewTripPage() {
           <ArrowLeft size={18} />
         </button>
         <div>
-          <h1 className="text-xl font-black text-white">New Trip</h1>
-          <p className="text-white/50 text-sm">{STEPS[step - 1].label}</p>
+          <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">New Trip</h1>
+          <p className="text-slate-500 text-sm font-medium">{STEPS[step - 1].label}</p>
         </div>
       </div>
 
@@ -157,13 +157,13 @@ export default function NewTripPage() {
           {STEPS.map((s) => (
             <div key={s.number} className={clsx(
               'flex-1 h-1.5 rounded-full transition-all duration-500',
-              s.number <= step ? 'bg-gradient-to-r from-violet-600 to-pink-600' : 'bg-white/10',
+              s.number <= step ? 'bg-gradient-to-r from-violet-600 to-indigo-500' : 'bg-slate-200',
             )} />
           ))}
         </div>
         <div className="flex justify-between mt-1.5">
           {STEPS.map((s) => (
-            <span key={s.number} className={clsx('text-xs font-medium transition-colors', s.number === step ? 'text-violet-400' : 'text-white/30')}>
+            <span key={s.number} className={clsx('text-xs font-medium transition-colors', s.number === step ? 'text-violet-600' : 'text-slate-300')}>
               {s.emoji}
             </span>
           ))}
@@ -196,7 +196,7 @@ export default function NewTripPage() {
                       className={clsx(
                         'rounded-2xl p-3 flex flex-col items-center gap-1 border transition-all duration-200',
                         added
-                          ? 'bg-violet-500/20 border-violet-500/50 shadow-glow-purple'
+                          ? 'bg-violet-100 border-violet-400/70'
                           : 'glass border-white/10 hover:border-white/25',
                       )}
                     >
