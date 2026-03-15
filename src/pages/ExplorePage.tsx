@@ -428,7 +428,7 @@ export default function ExplorePage() {
                 <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-1.5">Sort by</p>
                 <div className="flex flex-wrap gap-1.5">
                   {SORT_OPTIONS.map((opt) => (
-                    <button key={opt.value} onClick={() => setSortBy(opt.value)}
+                    <button key={opt.value} onClick={() => setSortBy(sortBy === opt.value ? 'top_rated' : opt.value)}
                       className={clsx(
                         'flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all',
                         sortBy === opt.value
@@ -464,7 +464,7 @@ export default function ExplorePage() {
                 <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-1.5">Min Rating</p>
                 <div className="flex flex-wrap gap-1.5">
                   {RATING_OPTIONS.map((opt) => (
-                    <button key={opt.value} onClick={() => setMinRating(opt.value)}
+                    <button key={opt.value} onClick={() => setMinRating(minRating === opt.value ? 0 : opt.value)}
                       className={clsx('flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all',
                         minRating === opt.value ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10')}>
                       {opt.value > 0 && <Star size={9} className="text-amber-400 fill-amber-400" />}
