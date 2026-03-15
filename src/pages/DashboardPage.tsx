@@ -35,7 +35,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-hero pb-28 safe-top max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gradient-hero pb-28 safe-top max-w-3xl mx-auto">
       {/* Header */}
       <div className="px-5 pt-12 pb-6">
         <div className="flex items-center justify-between mb-1">
