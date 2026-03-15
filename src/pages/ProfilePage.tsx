@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Save, CheckCircle } from 'lucide-react';
 import { useAuth, COMMUTE_OPTIONS, DIETARY_OPTIONS, INTEREST_OPTIONS } from '../context/AuthContext';
+import { useTrips } from '../context/TripContext';
 import type { CommuteType, DietaryRestriction, Interest, UserPreferences } from '../types';
 import clsx from 'clsx';
 
 export default function ProfilePage() {
   const { user, logout, updatePreferences } = useAuth();
+  const { regenerateAllItineraries } = useTrips();
   const navigate = useNavigate();
 
   const prefs = user?.preferences;
@@ -20,14 +22,17 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
-    updatePreferences({
+    const newPrefs: UserPreferences = {
+      ...prefs!,
       commuteTypes: commute,
       dietaryRestrictions: dietary,
       interests,
       pacePreference: pace as UserPreferences['pacePreference'],
       budgetRange: budget as UserPreferences['budgetRange'],
       currency,
-    });
+    };
+    updatePreferences(newPrefs);
+    regenerateAllItineraries(newPrefs);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };

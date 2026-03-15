@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { Trip, CityEntry, ItineraryDay, Accommodation, Activity } from '../types';
+import type { Trip, CityEntry, ItineraryDay, Accommodation, Activity, UserPreferences } from '../types';
 import { useAuth } from './AuthContext';
 import { buildItineraryDay } from '../utils/itinerary';
 import { eachDayOfInterval, parseISO, format } from 'date-fns';
@@ -18,6 +18,7 @@ interface TripCtx {
   generateDaysForCity: (tripId: string, cityId: string) => void;
   selectItineraryOption: (tripId: string, cityId: string, dayId: string, optionIndex: number) => void;
   addActivityToDay: (tripId: string, cityId: string, dayId: string, activity: Activity, time?: string) => void;
+  regenerateAllItineraries: (newPrefs: UserPreferences) => void;
 }
 
 const TripContext = createContext<TripCtx>({} as TripCtx);
@@ -245,12 +246,38 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
     });
   }, [writeStorage]);
 
+  const regenerateAllItineraries = useCallback((newPrefs: UserPreferences) => {
+    setTrips(prev => {
+      const updated = prev.map(trip => ({
+        ...trip,
+        cities: trip.cities.map(city => {
+          if (!city.accommodation || city.itineraryDays.length === 0) return city;
+          let days: Date[];
+          try {
+            days = eachDayOfInterval({ start: parseISO(city.arrivalDate), end: parseISO(city.departureDate) });
+          } catch { return city; }
+          let accVisited: string[] = [];
+          const itineraryDays: ItineraryDay[] = days.map((date, i) => {
+            const day = buildItineraryDay(city.id, format(date, 'yyyy-MM-dd'), i + 1, city.accommodation!, city.name, accVisited, newPrefs);
+            const opt = day.options[0];
+            if (opt) accVisited = [...accVisited, ...opt.activities.map(a => a.id).filter(id => !id.startsWith('meal-'))];
+            return day;
+          });
+          return { ...city, itineraryDays };
+        }),
+      }));
+      writeStorage(updated);
+      return updated;
+    });
+  }, [writeStorage]);
+
   return (
     <TripContext.Provider value={{
       trips, activeTrip, setActiveTrip,
       createFullTrip, createTrip, updateTrip, deleteTrip,
       addCity, updateCity, setAccommodation,
       generateDaysForCity, selectItineraryOption, addActivityToDay,
+      regenerateAllItineraries,
     }}>
       {children}
     </TripContext.Provider>
