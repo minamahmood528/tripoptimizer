@@ -43,6 +43,16 @@ const GOOGLE_TYPE_TO_ACTIVITY: Record<string, { type: ActivityType; category: Ac
   stadium: { type: 'entertainment', category: 'tourist' },
   zoo: { type: 'attraction', category: 'tourist' },
   aquarium: { type: 'attraction', category: 'tourist' },
+  // Activities
+  gym: { type: 'entertainment', category: 'outdoor' },
+  rv_park: { type: 'park', category: 'outdoor' },
+  // Culture / religious
+  library: { type: 'museum', category: 'culture' },
+  // Spas & wellness
+  spa: { type: 'essential', category: 'essential' },
+  beauty_salon: { type: 'essential', category: 'essential' },
+  hair_care: { type: 'essential', category: 'essential' },
+  // Essentials
   hospital: { type: 'essential', category: 'essential' },
   pharmacy: { type: 'essential', category: 'essential' },
   embassy: { type: 'essential', category: 'essential' },
@@ -271,9 +281,12 @@ function getCityBoundsFromGeocoder(center: LatLng): Promise<SimpleBounds | null>
 // 5. Boundary-filters results to the city box.
 // Fallback: fixed 5-zone cross grid when geocoding fails entirely.
 
+// types is an array — every type is searched in every zone in parallel.
+// e.g. Activities passes ['amusement_park','bowling_alley','movie_theater','gym']
+// → each zone fires 4 parallel requests, all results deduplicated by place_id.
 export function streamCitywidePlaces(
   center: LatLng,
-  type: string,
+  types: string[],
   onBatch: (places: Activity[]) => void,
   onComplete: () => void,
 ): void {
@@ -333,38 +346,46 @@ export function streamCitywidePlaces(
     }
 
     const seen = new Set<string>();
-    let completedZones = 0;
+    // One call per zone × type; onComplete fires when every call has returned.
+    let pending = zones.length * types.length;
+
+    const handleResult = (
+      res: google.maps.places.PlaceResult[] | null,
+      status: google.maps.places.PlacesServiceStatus,
+    ) => {
+      if (status === window.google.maps.places.PlacesServiceStatus.OK && res) {
+        const fresh = res
+          .filter((p) => {
+            if (!p.geometry?.location || !p.name) return false;
+            if (seen.has(p.place_id ?? '')) return false;
+            // Keep only places inside the city bounds (when known)
+            if (bounds) {
+              const lat = p.geometry.location.lat();
+              const lng = p.geometry.location.lng();
+              if (lat < bounds.south || lat > bounds.north ||
+                  lng < bounds.west  || lng > bounds.east) return false;
+            }
+            return true;
+          })
+          .map((p) => {
+            seen.add(p.place_id ?? `${p.name}_${Math.random()}`);
+            return placeToActivity(p, 0, {} as UserPreferences);
+          })
+          .filter((a): a is Activity => a !== null);
+        if (fresh.length > 0) onBatch(fresh);
+      }
+      pending--;
+      if (pending === 0) onComplete();
+    };
 
     zones.forEach(({ center: zoneCenter, radius }) => {
-      const service = new window.google.maps.places.PlacesService(document.createElement('div'));
-      service.nearbySearch(
-        { location: zoneCenter, radius, type: type as any },
-        (res, status) => {
-          if (status === window.google.maps.places.PlacesServiceStatus.OK && res) {
-            const fresh = res
-              .filter((p) => {
-                if (!p.geometry?.location || !p.name) return false;
-                if (seen.has(p.place_id ?? '')) return false;
-                // Keep only places inside the city bounds (when known)
-                if (bounds) {
-                  const lat = p.geometry.location.lat();
-                  const lng = p.geometry.location.lng();
-                  if (lat < bounds.south || lat > bounds.north ||
-                      lng < bounds.west  || lng > bounds.east) return false;
-                }
-                return true;
-              })
-              .map((p) => {
-                seen.add(p.place_id ?? `${p.name}_${Math.random()}`);
-                return placeToActivity(p, 0, {} as UserPreferences);
-              })
-              .filter((a): a is Activity => a !== null);
-            if (fresh.length > 0) onBatch(fresh);
-          }
-          completedZones++;
-          if (completedZones === zones.length) onComplete();
-        },
-      );
+      types.forEach((placeType) => {
+        const service = new window.google.maps.places.PlacesService(document.createElement('div'));
+        service.nearbySearch(
+          { location: zoneCenter, radius, type: placeType as any },
+          handleResult,
+        );
+      });
     });
   });
 }

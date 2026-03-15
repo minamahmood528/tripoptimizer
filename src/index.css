@@ -20,8 +20,8 @@
   }
 
   body {
-    background: #F5F3FF;
-    color: #0F172A;
+    background: #0D1329;
+    color: #F1F5F9;
     overscroll-behavior: none;
   }
 
@@ -36,12 +36,12 @@
 }
 
 @layer components {
-  /* ─── Dark Floating Cards (on light background) ──────────────── */
+  /* ─── Frosted Glass Cards (on dark background) ───────────────── */
   .glass {
-    background: rgba(15, 23, 42, 0.86);
+    background: rgba(255, 255, 255, 0.07);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
   }
   .glass-dark {
     background: rgba(7, 11, 23, 0.92);
@@ -72,8 +72,8 @@
            hover:bg-white hover:shadow-card active:scale-[0.98] transition-all duration-200;
   }
   .btn-danger {
-    @apply bg-red-50 border border-red-200 text-red-600 font-medium
-           rounded-2xl px-4 py-2 hover:bg-red-100 transition-all duration-200;
+    @apply bg-red-500/15 border border-red-500/40 text-red-400 font-medium
+           rounded-2xl px-4 py-2 hover:bg-red-500/25 hover:text-red-300 transition-all duration-200;
   }
 
   /* ─── Input ──────────────────────────────────────────────────── */

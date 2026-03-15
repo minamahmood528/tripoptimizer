@@ -52,7 +52,7 @@ export default function ActivityCard({ activity, index, isSelected, onClick, onS
     <div
       onClick={onClick}
       className={clsx(
-        'rounded-3xl p-4 border transition-all duration-300 cursor-pointer animate-fade-in',
+        'glass rounded-3xl p-4 border transition-all duration-300 cursor-pointer animate-fade-in',
         `bg-gradient-to-br ${gradient}`,
         isSelected
           ? 'border-violet-500/50 shadow-glow-purple'

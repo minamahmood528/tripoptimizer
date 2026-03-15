@@ -40,8 +40,8 @@ export default function DashboardPage() {
       <div className="px-5 pt-12 pb-6">
         <div className="flex items-center justify-between mb-1">
           <div>
-            <p className="text-slate-500 text-sm font-medium">Good {getGreeting()},</p>
-            <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">{user?.name?.split(' ')[0]} 👋</h1>
+            <p className="text-slate-400 text-sm font-medium">Good {getGreeting()},</p>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">{user?.name?.split(' ')[0]} 👋</h1>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-xl shadow-glow-purple">
             ✈️
@@ -93,7 +93,7 @@ export default function DashboardPage() {
       {upcoming.length > 0 && (
         <section className="px-5 mb-6">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-slate-700 font-extrabold text-lg tracking-tight">Upcoming Trips</h2>
+            <h2 className="text-slate-200 font-extrabold text-lg tracking-tight">Upcoming Trips</h2>
             <button
               onClick={() => navigate('/trips/new')}
               className="w-8 h-8 rounded-xl bg-violet-500/20 flex items-center justify-center text-violet-400 hover:bg-violet-500/30 transition-colors"

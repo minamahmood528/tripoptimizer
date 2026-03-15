@@ -33,7 +33,7 @@ export default {
         sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
       },
       backgroundImage: {
-        'gradient-hero': 'linear-gradient(160deg, #EEE9FF 0%, #FAFAFE 45%, #E6F7FD 100%)',
+        'gradient-hero': 'linear-gradient(160deg, #0D1329 0%, #111827 50%, #0A0F1E 100%)',
         'gradient-card': 'linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(6,182,212,0.04) 100%)',
         'gradient-primary': 'linear-gradient(135deg, #7C3AED 0%, #6366F1 100%)',
         'gradient-teal': 'linear-gradient(135deg, #06B6D4 0%, #7C3AED 100%)',

@@ -10,27 +10,69 @@ import type { Activity, Accommodation, LatLng } from '../types';
 import clsx from 'clsx';
 import { useGoogleMaps } from '../hooks/useGoogleMaps';
 
+// Each category searches ALL relevant Google Places types so nothing is missed.
+// Max 4 types per category keeps parallel API calls to ≤ 64 (4×4 grid × 4 types).
 const FILTER_TYPES = [
-  { label: 'Attractions', value: 'tourist_attraction', emoji: '🏛️' },
-  { label: 'Food', value: 'restaurant', emoji: '🍜' },
-  { label: 'Cafés', value: 'cafe', emoji: '☕' },
-  { label: 'Nightlife', value: 'bar', emoji: '🍺' },
-  { label: 'Shopping', value: 'shopping_mall', emoji: '🛍️' },
-  { label: 'Museums', value: 'museum', emoji: '🎨' },
-  { label: 'Parks', value: 'park', emoji: '🌿' },
-  { label: 'Activities', value: 'amusement_park', emoji: '🎡' },
-  { label: 'Spas', value: 'spa', emoji: '💆' },
+  {
+    label: 'Attractions', emoji: '🏛️',
+    types: ['tourist_attraction', 'zoo', 'aquarium', 'amusement_park'],
+  },
+  {
+    label: 'Food', emoji: '🍜',
+    types: ['restaurant', 'meal_takeaway', 'meal_delivery', 'bakery'],
+  },
+  {
+    label: 'Cafés', emoji: '☕',
+    types: ['cafe', 'bakery'],
+  },
+  {
+    label: 'Nightlife', emoji: '🍺',
+    types: ['bar', 'night_club', 'casino', 'liquor_store'],
+  },
+  {
+    label: 'Shopping', emoji: '🛍️',
+    types: ['shopping_mall', 'clothing_store', 'department_store', 'electronics_store'],
+  },
+  {
+    label: 'Museums', emoji: '🎨',
+    types: ['museum', 'art_gallery', 'library'],
+  },
+  {
+    label: 'Parks', emoji: '🌿',
+    types: ['park', 'campground', 'natural_feature', 'rv_park'],
+  },
+  {
+    // Covers: escape rooms, bowling, movies, arcades, gyms, theme parks, stadiums
+    label: 'Activities', emoji: '🎯',
+    types: ['amusement_park', 'bowling_alley', 'movie_theater', 'gym'],
+  },
+  {
+    // Covers: stadiums, sports arenas, recreation centres
+    label: 'Sports', emoji: '🏟️',
+    types: ['stadium', 'gym', 'park'],
+  },
+  {
+    label: 'Religious', emoji: '⛪',
+    types: ['church', 'mosque', 'synagogue', 'hindu_temple'],
+  },
+  {
+    label: 'Spas', emoji: '💆',
+    types: ['spa', 'beauty_salon', 'hair_care'],
+  },
 ];
 
 // Single violet colour for all explore markers
 const EXPLORE_MARKER_COLOR = '#7C3AED';
+
+const getTypes = (label: string): string[] =>
+  FILTER_TYPES.find((f) => f.label === label)?.types ?? ['tourist_attraction'];
 
 export default function ExplorePage() {
   const { user } = useAuth();
   const apiKey = user?.preferences?.googleMapsApiKey ?? '';
   const { isLoaded } = useGoogleMaps(apiKey);
 
-  const [filter, setFilter] = useState('tourist_attraction');
+  const [filter, setFilter] = useState('Attractions');
   const [places, setPlaces] = useState<Activity[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -105,13 +147,13 @@ export default function ExplorePage() {
       setSearchCenter(loc);
       setShowSearchHere(false);
       setPopupActivity(null);
-      doSearch(loc, filter);
+      doSearch(loc, getTypes(filter));
     });
     autocompleteRef.current = ac;
   }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 3. City-wide grid search — 5 parallel zones, ~100 unique results ────────
-  const doSearch = useCallback((center: LatLng, type: string) => {
+  const doSearch = useCallback((center: LatLng, types: string[]) => {
     if (!window.google?.maps?.places) return;
     searchAbortRef.current = true; // signal any in-flight stream to stop
     setIsSearching(true);
@@ -123,7 +165,7 @@ export default function ExplorePage() {
     searchAbortRef.current = false;
 
     streamCitywidePlaces(
-      center, type,
+      center, types,
       (batch) => {
         if (searchAbortRef.current) return;
         setPlaces((prev) => {
@@ -150,13 +192,13 @@ export default function ExplorePage() {
     if (!isLoaded || !searchCenter) return;
     if (initialSearchDone.current && searchCenter === mapCenter) return;
     initialSearchDone.current = true;
-    doSearch(searchCenter, filter);
+    doSearch(searchCenter, getTypes(filter));
   }, [isLoaded, searchCenter, filter, doSearch, mapCenter]);
 
   // Re-search when filter chip changes
   useEffect(() => {
     if (!isLoaded || !searchCenter) return;
-    doSearch(searchCenter, filter);
+    doSearch(searchCenter, getTypes(filter));
   }, [filter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 4. Map idle → "Search this area" ────────────────────────────────────
@@ -169,7 +211,7 @@ export default function ExplorePage() {
   const handleSearchHere = () => {
     if (!pendingCenter) return;
     setSearchCenter(pendingCenter);
-    doSearch(pendingCenter, filter);
+    doSearch(pendingCenter, getTypes(filter));
     setShowSearchHere(false);
   };
 
@@ -179,7 +221,7 @@ export default function ExplorePage() {
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setMapCenter(loc); setSearchCenter(loc); setSearchQuery('');
-        doSearch(loc, filter);
+        doSearch(loc, getTypes(filter));
       },
       () => {},
       { timeout: 5000 },
@@ -217,8 +259,8 @@ export default function ExplorePage() {
       <div className="px-5 pt-12 pb-3">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Explore</h1>
-            <p className="text-slate-500 text-sm font-medium mt-0.5">{subtitleText()}</p>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">Explore</h1>
+            <p className="text-slate-400 text-sm font-medium mt-0.5">{subtitleText()}</p>
           </div>
           {geoStatus === 'ok' && (
             <button onClick={handleRecenter}
@@ -252,12 +294,12 @@ export default function ExplorePage() {
       {/* Filter chips */}
       <div className="flex gap-2 overflow-x-auto scroll-hidden px-5 pb-3">
         {FILTER_TYPES.map((f) => (
-          <button key={f.value} onClick={() => setFilter(f.value)}
+          <button key={f.label} onClick={() => setFilter(f.label)}
             className={clsx(
               'flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-semibold transition-all',
-              filter === f.value
+              filter === f.label
                 ? 'bg-violet-100 border-violet-400/60 text-violet-700'
-                : 'glass border-white/10 text-white/60 hover:text-white',
+                : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/20 hover:text-white',
             )}>
             <span>{f.emoji}</span> {f.label}
           </button>
@@ -343,12 +385,12 @@ export default function ExplorePage() {
       <div className="px-5">
         {/* Status bar */}
         <div className="flex items-center justify-between mb-3">
-          <p className="text-slate-500 text-sm font-medium">
+          <p className="text-slate-400 text-sm font-medium">
             {isSearching
               ? 'Finding places…'
               : `${places.length} places found${locationLabel ? ` in ${locationLabel}` : ''}`}
             {isLoadingMore && !isSearching && (
-              <span className="text-violet-500 ml-1">· loading more…</span>
+              <span className="text-violet-400 ml-1">· loading more…</span>
             )}
           </p>
           {(isSearching || isLoadingMore) && <Loader2 size={16} className="text-violet-400 animate-spin" />}
