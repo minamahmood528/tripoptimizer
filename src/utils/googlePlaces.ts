@@ -259,11 +259,17 @@ function getCityBoundsFromGeocoder(center: LatLng): Promise<SimpleBounds | null>
 }
 
 // ─── City-wide Grid Search (Explore page) ────────────────────────────────────
+// Works for any city worldwide:
 // 1. Geocodes the center to get the real city boundary box.
-// 2. Divides that box into up to a 3×3 grid (capped at 9 zones).
-// 3. Fires all zone searches in parallel — results trickle in as batches.
-// 4. Filters results to stay within city bounds.
-// Fallback: fixed 5-zone cross grid when geocoding fails.
+// 2. Divides that box into a dynamic grid (up to 4×4 = 16 zones).
+//    - Small city (Paris ~10 km) → 1×1 or 2×2
+//    - Medium city (Edmonton ~35 km) → 3×3
+//    - Large city (London ~50 km, Tokyo ~90 km) → 4×4
+// 3. Sanity-checks: if Google returns a state/province (>150 km), falls back
+//    to a fixed 30 km radius to avoid a 16-zone search of Alberta.
+// 4. Fires all zone searches in parallel — results arrive as batches.
+// 5. Boundary-filters results to the city box.
+// Fallback: fixed 5-zone cross grid when geocoding fails entirely.
 
 export function streamCitywidePlaces(
   center: LatLng,
@@ -274,7 +280,6 @@ export function streamCitywidePlaces(
   if (!window.google?.maps?.places) { onComplete(); return; }
 
   getCityBoundsFromGeocoder(center).then((bounds) => {
-    // Build zone grid from real city bounds
     type Zone = { center: LatLng; radius: number };
     let zones: Zone[];
 
@@ -287,29 +292,36 @@ export function streamCitywidePlaces(
       const cityH = latRange * kmPerLat;
       const cityW = Math.abs(lngRange) * kmPerLng;
 
-      // Target ~10 km cells, cap at 3×3
-      const rows = Math.max(1, Math.min(3, Math.round(cityH / 10)));
-      const cols = Math.max(1, Math.min(3, Math.round(cityW / 10)));
-      const dLat = latRange / rows;
-      const dLng = lngRange / cols;
-      // Radius = half diagonal of cell + 15% overlap buffer
-      const halfDiagKm = Math.sqrt((dLat * kmPerLat) ** 2 + (dLng * kmPerLng) ** 2) / 2;
-      const radius = Math.max(5000, Math.min(50000, Math.ceil(halfDiagKm * 1150)));
+      // Sanity check: if bounds cover a state/province (> 150 km either way),
+      // Google returned a region not a city — use a single fixed-radius search.
+      if (cityH > 150 || cityW > 150) {
+        zones = [{ center, radius: 30000 }];
+      } else {
+        // Target ~10 km cells, cap at 4×4 (16 parallel calls).
+        // Examples: Paris(10km)→1×1, Edmonton(35km)→3×3, London(50km)→4×4
+        const rows = Math.max(1, Math.min(4, Math.round(cityH / 10)));
+        const cols = Math.max(1, Math.min(4, Math.round(cityW / 10)));
+        const dLat = latRange / rows;
+        const dLng = lngRange / cols;
+        // Radius = half diagonal of each cell + 15% overlap so no gaps
+        const halfDiagKm = Math.sqrt((dLat * kmPerLat) ** 2 + (dLng * kmPerLng) ** 2) / 2;
+        const radius = Math.max(5000, Math.min(50000, Math.ceil(halfDiagKm * 1150)));
 
-      zones = [];
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          zones.push({
-            center: {
-              lat: bounds.south + dLat * (r + 0.5),
-              lng: bounds.west  + dLng * (c + 0.5),
-            },
-            radius,
-          });
+        zones = [];
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            zones.push({
+              center: {
+                lat: bounds.south + dLat * (r + 0.5),
+                lng: bounds.west  + dLng * (c + 0.5),
+              },
+              radius,
+            });
+          }
         }
       }
     } else {
-      // Fallback: fixed cross grid
+      // Fallback: fixed cross grid (no geocoder result)
       const DL = 0.063; const DG = 0.09;
       zones = [
         { center, radius: 10000 },
