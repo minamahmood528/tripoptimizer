@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Clock, MapPin, Star, ExternalLink, CheckCircle, Calendar, BookmarkPlus, Images } from 'lucide-react';
+import { Clock, MapPin, Star, ExternalLink, CheckCircle, Calendar, BookmarkPlus } from 'lucide-react';
 import type { Activity } from '../../types';
 import { getCategoryIcon, getPriceLevelLabel, formatDuration } from '../../utils/itinerary';
 import clsx from 'clsx';
@@ -49,224 +48,143 @@ export default function ActivityCard({ activity, index, isSelected, onClick, onS
   const gradient = CATEGORY_GRADIENTS[activity.category] ?? 'from-slate-500/20 to-slate-500/10';
   const badge = CATEGORY_BADGES[activity.category] ?? 'bg-slate-500/20 text-slate-300 border-slate-500/30';
 
-  const [activePhotoIdx, setActivePhotoIdx] = useState(0);
-  const [photoFailed, setPhotoFailed] = useState(false);
-
-  const hasPhoto = activity.photos.length > 0 && !photoFailed;
-
   return (
     <div
       onClick={onClick}
       className={clsx(
-        'glass rounded-3xl overflow-hidden border transition-all duration-300 cursor-pointer animate-fade-in',
-        !hasPhoto && `bg-gradient-to-br ${gradient}`,
+        'glass rounded-3xl p-4 border transition-all duration-300 cursor-pointer animate-fade-in',
+        `bg-gradient-to-br ${gradient}`,
         isSelected
           ? 'border-violet-500/50 shadow-glow-purple'
           : 'border-white/10 hover:border-white/20 hover:-translate-y-0.5 hover:shadow-card',
       )}
     >
-      {/* ── Hero Photo ─────────────────────────────────────────────────── */}
-      {hasPhoto && (
-        <div className="relative h-48 overflow-hidden bg-slate-800">
-          <img
-            src={activity.photos[activePhotoIdx]}
-            alt={activity.name}
-            className="w-full h-full object-cover transition-opacity duration-300"
-            loading="lazy"
-            onError={() => setPhotoFailed(true)}
-          />
+      {/* Header Row */}
+      <div className="flex items-start gap-3 mb-3">
+        <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0 text-sm font-bold text-white">
+          {index + 1}
+        </div>
 
-          {/* gradient overlay — lighter at top, darker at bottom */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/75 pointer-events-none" />
-
-          {/* Number badge — top left */}
-          <div className="absolute top-3 left-3 w-8 h-8 rounded-xl bg-black/50 backdrop-blur-sm border border-white/20 flex items-center justify-center text-sm font-bold text-white">
-            {index + 1}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">{getCategoryIcon(activity.type)}</span>
+            <h3 className="font-semibold text-white text-base leading-tight truncate">{activity.name}</h3>
           </div>
 
-          {/* Rating pill — top right */}
-          <div className="absolute top-3 right-3 flex items-center gap-1 bg-black/50 backdrop-blur-sm rounded-xl px-2.5 py-1 border border-white/10">
-            <Star size={11} className="text-amber-400 fill-amber-400" />
-            <span className="text-xs text-amber-400 font-bold">{activity.rating}</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={clsx('category-pill border', badge)}>
+              {activity.category.replace('_', ' ')}
+            </span>
+            <span className="text-xs text-white/50">
+              {getPriceLevelLabel(activity.priceLevel)}
+            </span>
+            {activity.isEssential && (
+              <span className="category-pill bg-red-500/20 text-red-300 border border-red-500/30">
+                Essential
+              </span>
+            )}
           </div>
+        </div>
 
-          {/* Place name + category overlaid at bottom */}
-          <div className="absolute bottom-0 left-0 right-0 px-4 pb-3 pt-8">
-            <div className="flex items-end justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="text-base">{getCategoryIcon(activity.type)}</span>
-                  <h3 className="font-bold text-white text-base leading-tight truncate drop-shadow">{activity.name}</h3>
-                </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className={clsx('category-pill border text-[11px]', badge)}>
-                    {activity.category.replace('_', ' ')}
-                  </span>
-                  <span className="text-xs text-white/70">{getPriceLevelLabel(activity.priceLevel)}</span>
-                  {activity.isEssential && (
-                    <span className="category-pill bg-red-500/30 text-red-300 border border-red-500/40 text-[11px]">Essential</span>
-                  )}
-                </div>
-              </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <Star size={12} className="text-amber-400 fill-amber-400" />
+          <span className="text-xs text-amber-400 font-semibold">{activity.rating}</span>
+        </div>
+      </div>
 
-              {/* Photo strip — tap to cycle photos */}
-              {activity.photos.length > 1 && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActivePhotoIdx((i) => (i + 1) % activity.photos.length);
-                  }}
-                  className="flex items-center gap-1 bg-black/50 backdrop-blur-sm rounded-xl px-2 py-1 border border-white/10 text-white/70 hover:text-white transition-colors shrink-0"
-                >
-                  <Images size={12} />
-                  <span className="text-[11px] font-medium">{activePhotoIdx + 1}/{activity.photos.length}</span>
-                </button>
-              )}
-            </div>
+      {/* Description */}
+      <p className="text-white/60 text-sm leading-relaxed mb-3 line-clamp-2">{activity.description}</p>
+
+      {/* Time & Distance Row */}
+      <div className="flex items-center gap-4 mb-3">
+        {activity.arrivalTime && (
+          <div className="flex items-center gap-1.5 text-xs text-white/70">
+            <Calendar size={12} className="text-violet-400" />
+            <span>{activity.arrivalTime} – {activity.departureTime}</span>
           </div>
+        )}
+        <div className="flex items-center gap-1.5 text-xs text-white/70">
+          <Clock size={12} className="text-cyan-400" />
+          <span>{formatDuration(activity.durationMin)}</span>
+        </div>
+        {activity.distanceFromPrevKm > 0 && (
+          <div className="flex items-center gap-1.5 text-xs text-white/70">
+            <MapPin size={12} className="text-pink-400" />
+            <span>{activity.distanceFromPrevKm} km</span>
+          </div>
+        )}
+      </div>
 
-          {/* Dot indicators for multiple photos */}
-          {activity.photos.length > 1 && (
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1 pointer-events-none">
-              {activity.photos.slice(0, 5).map((_, i) => (
-                <div
-                  key={i}
-                  className={clsx(
-                    'rounded-full transition-all',
-                    i === activePhotoIdx ? 'w-4 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/40',
-                  )}
-                />
-              ))}
-            </div>
-          )}
+      {/* Address */}
+      <div className="flex items-start gap-1.5 mb-3">
+        <MapPin size={12} className="text-white/30 mt-0.5 shrink-0" />
+        <p className="text-white/40 text-xs leading-relaxed">{activity.address}</p>
+      </div>
+
+      {/* Opening Hours */}
+      {activity.openingHours && (
+        <div className="flex items-center gap-1.5 mb-3">
+          <Clock size={12} className="text-white/30" />
+          <span className="text-white/40 text-xs">{activity.openingHours}</span>
         </div>
       )}
 
-      {/* ── Card Content ───────────────────────────────────────────────── */}
-      <div className={clsx('p-4', hasPhoto && `bg-gradient-to-br ${gradient}`)}>
-
-        {/* Header row — only shown when no photo (photo has its own header overlay) */}
-        {!hasPhoto && (
-          <div className="flex items-start gap-3 mb-3">
-            <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0 text-sm font-bold text-white">
-              {index + 1}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-lg">{getCategoryIcon(activity.type)}</span>
-                <h3 className="font-semibold text-white text-base leading-tight truncate">{activity.name}</h3>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={clsx('category-pill border', badge)}>
-                  {activity.category.replace('_', ' ')}
-                </span>
-                <span className="text-xs text-white/50">{getPriceLevelLabel(activity.priceLevel)}</span>
-                {activity.isEssential && (
-                  <span className="category-pill bg-red-500/20 text-red-300 border border-red-500/30">Essential</span>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <Star size={12} className="text-amber-400 fill-amber-400" />
-              <span className="text-xs text-amber-400 font-semibold">{activity.rating}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Description */}
-        <p className="text-white/60 text-sm leading-relaxed mb-3 line-clamp-2">{activity.description}</p>
-
-        {/* Time & Distance Row */}
-        <div className="flex items-center gap-4 mb-3">
-          {activity.arrivalTime && (
-            <div className="flex items-center gap-1.5 text-xs text-white/70">
-              <Calendar size={12} className="text-violet-400" />
-              <span>{activity.arrivalTime} – {activity.departureTime}</span>
-            </div>
-          )}
-          <div className="flex items-center gap-1.5 text-xs text-white/70">
-            <Clock size={12} className="text-cyan-400" />
-            <span>{formatDuration(activity.durationMin)}</span>
-          </div>
-          {activity.distanceFromPrevKm > 0 && (
-            <div className="flex items-center gap-1.5 text-xs text-white/70">
-              <MapPin size={12} className="text-pink-400" />
-              <span>{activity.distanceFromPrevKm} km</span>
-            </div>
-          )}
+      {/* Tags */}
+      {activity.tags.length > 0 && (
+        <div className="flex gap-1.5 flex-wrap mb-3">
+          {activity.tags.slice(0, 4).map((tag) => (
+            <span key={tag} className="px-2 py-0.5 rounded-full bg-white/5 text-white/40 text-xs">
+              #{tag}
+            </span>
+          ))}
         </div>
+      )}
 
-        {/* Address */}
-        <div className="flex items-start gap-1.5 mb-3">
-          <MapPin size={12} className="text-white/30 mt-0.5 shrink-0" />
-          <p className="text-white/40 text-xs leading-relaxed">{activity.address}</p>
-        </div>
+      {/* Save to Trip */}
+      {showSaveButton && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onSaveToTrip?.(); }}
+          className="w-full flex items-center justify-center gap-2 mb-3 py-2.5 rounded-2xl bg-violet-500/15 border border-violet-500/30 text-violet-300 text-sm font-semibold hover:bg-violet-500/25 transition-all"
+        >
+          <BookmarkPlus size={15} />
+          Save to Trip
+        </button>
+      )}
 
-        {/* Opening Hours */}
-        {activity.openingHours && (
-          <div className="flex items-center gap-1.5 mb-3">
-            <Clock size={12} className="text-white/30" />
-            <span className="text-white/40 text-xs">{activity.openingHours}</span>
+      {/* Booking Section */}
+      <div className="border-t border-white/10 pt-3">
+        {activity.requiresBooking ? (
+          <div>
+            <p className="text-xs text-white/50 mb-2 flex items-center gap-1">
+              <Calendar size={11} />
+              Booking recommended — available on:
+            </p>
+            <div className="flex gap-2 flex-wrap">
+              {activity.bookingPlatforms.map((platform) => (
+                <a
+                  key={platform.name}
+                  href={platform.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className={clsx(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-200',
+                    BOOKING_PLATFORM_STYLES[platform.name] ?? 'bg-white/10 text-white/70 hover:bg-white/20',
+                  )}
+                >
+                  <span>{platform.logo}</span>
+                  <span>{platform.name}</span>
+                  <ExternalLink size={10} />
+                </a>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <CheckCircle size={14} className="text-emerald-400" />
+            <span className="text-xs text-emerald-400 font-medium">No booking required — just show up!</span>
           </div>
         )}
-
-        {/* Tags */}
-        {activity.tags.length > 0 && (
-          <div className="flex gap-1.5 flex-wrap mb-3">
-            {activity.tags.slice(0, 4).map((tag) => (
-              <span key={tag} className="px-2 py-0.5 rounded-full bg-white/5 text-white/40 text-xs">
-                #{tag}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Save to Trip */}
-        {showSaveButton && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onSaveToTrip?.(); }}
-            className="w-full flex items-center justify-center gap-2 mb-3 py-2.5 rounded-2xl bg-violet-500/15 border border-violet-500/30 text-violet-300 text-sm font-semibold hover:bg-violet-500/25 transition-all"
-          >
-            <BookmarkPlus size={15} />
-            Save to Trip
-          </button>
-        )}
-
-        {/* Booking Section */}
-        <div className="border-t border-white/10 pt-3">
-          {activity.requiresBooking ? (
-            <div>
-              <p className="text-xs text-white/50 mb-2 flex items-center gap-1">
-                <Calendar size={11} />
-                Booking recommended — available on:
-              </p>
-              <div className="flex gap-2 flex-wrap">
-                {activity.bookingPlatforms.map((platform) => (
-                  <a
-                    key={platform.name}
-                    href={platform.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className={clsx(
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-200',
-                      BOOKING_PLATFORM_STYLES[platform.name] ?? 'bg-white/10 text-white/70 hover:bg-white/20',
-                    )}
-                  >
-                    <span>{platform.logo}</span>
-                    <span>{platform.name}</span>
-                    <ExternalLink size={10} />
-                  </a>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <CheckCircle size={14} className="text-emerald-400" />
-              <span className="text-xs text-emerald-400 font-medium">No booking required — just show up!</span>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
