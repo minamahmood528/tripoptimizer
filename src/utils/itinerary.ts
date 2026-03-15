@@ -229,7 +229,16 @@ const THEME_TYPES: Record<ItineraryTheme, string[]> = {
 function rankByTheme(places: Activity[], theme: ItineraryTheme): Activity[] {
   const cats = THEME_CATEGORIES[theme];
   const types = THEME_TYPES[theme];
-  const nonEssential = places.filter(p => p.category !== 'essential');
+  const nonEssential = places.filter(p => {
+    if (p.category === 'essential') return false;
+    // Restaurants only belong in foodie days; other themes get injected meal slots
+    if (p.type === 'restaurant' && theme !== 'foodie') return false;
+    // Cafés only belong in foodie and local_life (morning coffee is a local-life activity)
+    if (p.type === 'cafe' && theme !== 'foodie' && theme !== 'local_life') return false;
+    // Bars/nightclubs only for adventure_nightlife
+    if ((p.type === 'bar' || p.type === 'nightclub') && theme !== 'adventure_nightlife') return false;
+    return true;
+  });
   const tier1 = nonEssential.filter(p => cats.includes(p.category));
   const tier2 = nonEssential.filter(p => !cats.includes(p.category) && types.includes(p.type));
   const tier3 = nonEssential.filter(p => !cats.includes(p.category) && !types.includes(p.type));
@@ -253,6 +262,10 @@ const THEME_GENERIC: Record<ItineraryTheme, ActivityTemplate[]> = {
     { name: 'City Park & Gardens', type: 'park', category: 'outdoor', durationMin: 60, priceLevel: 0, requiresBooking: false, bookingPlatforms: [], tags: ['nature', 'relax', 'free'], openingHours: '6:00 AM – dusk' },
     { name: 'Heritage Monument', type: 'historical', category: 'tourist', durationMin: 45, priceLevel: 0, requiresBooking: false, bookingPlatforms: [], tags: ['history', 'free', 'landmark'], openingHours: 'Open 24h' },
     { name: 'Souvenir & Craft Market', type: 'shopping', category: 'shopping', durationMin: 60, priceLevel: 1, requiresBooking: false, bookingPlatforms: [], tags: ['souvenirs', 'local crafts'], openingHours: '9:00 AM – 7:00 PM' },
+    { name: 'Iconic Bridge or Waterfront', type: 'attraction', category: 'tourist', durationMin: 45, priceLevel: 0, requiresBooking: false, bookingPlatforms: [], tags: ['scenic', 'waterfront', 'photography', 'free'], openingHours: 'Open 24h' },
+    { name: 'Royal Palace or Government Building', type: 'historical', category: 'tourist', durationMin: 75, priceLevel: 1, requiresBooking: false, bookingPlatforms: [BOOKING_PLATFORMS.getyourguide], tags: ['palace', 'royal', 'historic', 'architecture'], openingHours: '9:00 AM – 5:00 PM' },
+    { name: 'City Panorama Cable Car / Gondola', type: 'attraction', category: 'tourist', durationMin: 90, priceLevel: 2, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.klook, BOOKING_PLATFORMS.viator], tags: ['cable car', 'views', 'scenic', 'city panorama'], openingHours: '9:00 AM – 9:00 PM' },
+    { name: 'War Memorial & National Monument', type: 'historical', category: 'tourist', durationMin: 60, priceLevel: 0, requiresBooking: false, bookingPlatforms: [], tags: ['memorial', 'history', 'national', 'free'], openingHours: 'Open 24h' },
   ],
   culture_art: [
     { name: 'National Art Museum', type: 'museum', category: 'culture', durationMin: 150, priceLevel: 2, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.getyourguide], tags: ['art', 'national', 'masterpieces'], openingHours: '9:30 AM – 6:00 PM' },
@@ -263,6 +276,10 @@ const THEME_GENERIC: Record<ItineraryTheme, ActivityTemplate[]> = {
     { name: 'Archaeology & History Museum', type: 'museum', category: 'culture', durationMin: 120, priceLevel: 1, requiresBooking: false, bookingPlatforms: [BOOKING_PLATFORMS.getyourguide], tags: ['archaeology', 'ancient', 'artifacts'], openingHours: '9:00 AM – 5:00 PM' },
     { name: 'Traditional Craft Workshop', type: 'entertainment', category: 'culture', durationMin: 90, priceLevel: 2, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.klook], tags: ['hands-on', 'traditional', 'workshop'], openingHours: '10:00 AM – 4:00 PM' },
     { name: 'Grand Opera / Theatre', type: 'entertainment', category: 'culture', durationMin: 150, priceLevel: 3, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.viator], tags: ['performance', 'arts', 'evening'], openingHours: 'Evening shows from 7:00 PM' },
+    { name: 'Photography & Visual Arts Museum', type: 'museum', category: 'culture', durationMin: 90, priceLevel: 1, requiresBooking: false, bookingPlatforms: [BOOKING_PLATFORMS.klook], tags: ['photography', 'visual arts', 'exhibitions'], openingHours: '10:00 AM – 7:00 PM' },
+    { name: 'Ancient Ruins & Archaeological Site', type: 'historical', category: 'culture', durationMin: 120, priceLevel: 1, requiresBooking: false, bookingPlatforms: [BOOKING_PLATFORMS.getyourguide], tags: ['ruins', 'ancient', 'archaeology', 'outdoor'], openingHours: '8:00 AM – 6:00 PM' },
+    { name: 'Music Heritage & Instrument Museum', type: 'museum', category: 'culture', durationMin: 90, priceLevel: 1, requiresBooking: false, bookingPlatforms: [], tags: ['music', 'heritage', 'instruments', 'culture'], openingHours: '9:00 AM – 5:00 PM' },
+    { name: 'Literary & Writers Quarter Walking Tour', type: 'attraction', category: 'culture', durationMin: 90, priceLevel: 1, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.viator, BOOKING_PLATFORMS.getyourguide], tags: ['literary', 'writers', 'walking tour', 'history'], openingHours: '10:00 AM – 4:00 PM' },
   ],
   foodie: [
     { name: 'Local Food Market', type: 'attraction', category: 'food', durationMin: 90, priceLevel: 1, requiresBooking: false, bookingPlatforms: [BOOKING_PLATFORMS.klook], tags: ['market', 'street food', 'local produce'], openingHours: '6:00 AM – 2:00 PM' },
@@ -273,6 +290,10 @@ const THEME_GENERIC: Record<ItineraryTheme, ActivityTemplate[]> = {
     { name: 'Hands-On Cooking Class', type: 'entertainment', category: 'food', durationMin: 180, priceLevel: 3, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.viator, BOOKING_PLATFORMS.klook], tags: ['cooking', 'hands-on', 'local cuisine'], openingHours: 'Morning & afternoon sessions' },
     { name: 'Evening Night Market', type: 'attraction', category: 'food', durationMin: 120, priceLevel: 1, requiresBooking: false, bookingPlatforms: [BOOKING_PLATFORMS.klook], tags: ['night market', 'street food', 'local atmosphere'], openingHours: '5:00 PM – 11:00 PM' },
     { name: 'Dessert & Sweets Shop', type: 'cafe', category: 'food', durationMin: 45, priceLevel: 1, requiresBooking: false, bookingPlatforms: [], tags: ['desserts', 'sweets', 'local treats', 'casual'], openingHours: '10:00 AM – 10:00 PM' },
+    { name: 'Wine / Sake / Tea Tasting Experience', type: 'entertainment', category: 'food', durationMin: 90, priceLevel: 2, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.viator, BOOKING_PLATFORMS.klook], tags: ['tasting', 'drinks', 'experience', 'local speciality'], openingHours: '11:00 AM – 6:00 PM' },
+    { name: 'Famous Brunch Café & Breakfast Spot', type: 'cafe', category: 'food', durationMin: 75, priceLevel: 2, requiresBooking: false, bookingPlatforms: [BOOKING_PLATFORMS.opentable], tags: ['brunch', 'breakfast', 'café', 'morning'], openingHours: '8:00 AM – 3:00 PM' },
+    { name: 'Specialty Coffee Roastery', type: 'cafe', category: 'food', durationMin: 45, priceLevel: 1, requiresBooking: false, bookingPlatforms: [], tags: ['specialty coffee', 'roastery', 'barista', 'third-wave'], openingHours: '8:00 AM – 5:00 PM' },
+    { name: 'International Cuisine Quarter', type: 'attraction', category: 'food', durationMin: 90, priceLevel: 2, requiresBooking: false, bookingPlatforms: [], tags: ['diverse cuisine', 'ethnic food', 'neighbourhood', 'variety'], openingHours: '12:00 PM – 10:00 PM' },
   ],
   local_life: [
     { name: 'Neighbourhood Walk & Explore', type: 'attraction', category: 'local_life', durationMin: 90, priceLevel: 0, requiresBooking: false, bookingPlatforms: [], tags: ['local streets', 'hidden gems', 'free'], openingHours: 'Open 24h' },
@@ -283,6 +304,10 @@ const THEME_GENERIC: Record<ItineraryTheme, ActivityTemplate[]> = {
     { name: 'Riverside / Waterfront Walk', type: 'park', category: 'outdoor', durationMin: 60, priceLevel: 0, requiresBooking: false, bookingPlatforms: [], tags: ['scenic', 'walking', 'free'], openingHours: 'Open 24h' },
     { name: 'Weekend Flea & Antique Market', type: 'shopping', category: 'local_life', durationMin: 90, priceLevel: 1, requiresBooking: false, bookingPlatforms: [], tags: ['vintage', 'antiques', 'treasure hunting'], openingHours: 'Weekends 9:00 AM – 4:00 PM' },
     { name: 'Off-the-Beaten-Path Viewpoint', type: 'attraction', category: 'local_life', durationMin: 30, priceLevel: 0, requiresBooking: false, bookingPlatforms: [], tags: ['views', 'secret spot', 'photography'], openingHours: 'Open 24h' },
+    { name: 'Community Sports Park & Recreation', type: 'park', category: 'outdoor', durationMin: 60, priceLevel: 0, requiresBooking: false, bookingPlatforms: [], tags: ['sports', 'community', 'outdoor', 'free'], openingHours: '6:00 AM – 10:00 PM' },
+    { name: 'Scenic Cycling or Running Trail', type: 'park', category: 'outdoor', durationMin: 90, priceLevel: 0, requiresBooking: false, bookingPlatforms: [], tags: ['cycling', 'running', 'trail', 'scenic', 'active'], openingHours: 'Open 24h' },
+    { name: 'Urban Village & Hidden Alley Exploration', type: 'attraction', category: 'local_life', durationMin: 75, priceLevel: 0, requiresBooking: false, bookingPlatforms: [], tags: ['urban village', 'alleyways', 'discovery', 'local life', 'free'], openingHours: 'Open 24h' },
+    { name: 'Rooftop Garden & Urban Farm', type: 'attraction', category: 'local_life', durationMin: 60, priceLevel: 1, requiresBooking: false, bookingPlatforms: [], tags: ['rooftop', 'garden', 'urban farm', 'green space'], openingHours: '9:00 AM – 5:00 PM' },
   ],
   adventure_nightlife: [
     { name: 'Rooftop Cocktail Bar', type: 'bar', category: 'nightlife', durationMin: 90, priceLevel: 3, requiresBooking: false, bookingPlatforms: [BOOKING_PLATFORMS.resy], tags: ['rooftop', 'cocktails', 'sunset views'], openingHours: '5:00 PM – 2:00 AM' },
@@ -293,6 +318,10 @@ const THEME_GENERIC: Record<ItineraryTheme, ActivityTemplate[]> = {
     { name: 'Comedy & Improv Show', type: 'entertainment', category: 'nightlife', durationMin: 120, priceLevel: 2, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.viator], tags: ['comedy', 'entertainment', 'evening show'], openingHours: 'Evening shows 7:00 PM' },
     { name: 'Night Street Food Tour', type: 'attraction', category: 'food', durationMin: 120, priceLevel: 2, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.klook, BOOKING_PLATFORMS.viator], tags: ['night market', 'street food', 'guided'], openingHours: '6:00 PM – 10:00 PM' },
     { name: 'Karaoke & Drinks Night', type: 'entertainment', category: 'nightlife', durationMin: 120, priceLevel: 1, requiresBooking: false, bookingPlatforms: [], tags: ['karaoke', 'fun night out', 'group activity'], openingHours: '7:00 PM – 2:00 AM' },
+    { name: 'Speakeasy & Hidden Cocktail Bar', type: 'bar', category: 'nightlife', durationMin: 90, priceLevel: 3, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.resy], tags: ['speakeasy', 'hidden bar', 'cocktails', 'secret'], openingHours: '7:00 PM – 2:00 AM' },
+    { name: 'Sunrise Viewpoint Hike', type: 'attraction', category: 'outdoor', durationMin: 120, priceLevel: 0, requiresBooking: false, bookingPlatforms: [], tags: ['sunrise', 'hike', 'viewpoint', 'early morning', 'adventure'], openingHours: 'Dawn' },
+    { name: 'Electronic Music & DJ Set Night', type: 'nightclub', category: 'nightlife', durationMin: 180, priceLevel: 2, requiresBooking: false, bookingPlatforms: [BOOKING_PLATFORMS.klook], tags: ['electronic music', 'DJ', 'nightlife', 'dancing'], openingHours: '10:00 PM – 5:00 AM' },
+    { name: 'Late-Night Street Food Hunt', type: 'attraction', category: 'food', durationMin: 90, priceLevel: 1, requiresBooking: false, bookingPlatforms: [], tags: ['late night', 'street food', 'casual', 'local eats'], openingHours: '9:00 PM – 2:00 AM' },
   ],
   fun_experiences: [
     { name: 'Immersive Digital Art Exhibition', type: 'entertainment', category: 'entertainment', durationMin: 120, priceLevel: 3, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.klook, BOOKING_PLATFORMS.viator], tags: ['digital art', 'immersive', 'interactive', 'teamlab', 'unique'], openingHours: '10:00 AM – 9:00 PM' },
@@ -303,17 +332,45 @@ const THEME_GENERIC: Record<ItineraryTheme, ActivityTemplate[]> = {
     { name: 'Amusement Park / Theme Park', type: 'park', category: 'entertainment', durationMin: 240, priceLevel: 3, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.klook, BOOKING_PLATFORMS.viator], tags: ['theme park', 'rides', 'thrill', 'family fun', 'amusement'], openingHours: '9:00 AM – 9:00 PM' },
     { name: 'Arcade & Game Center', type: 'entertainment', category: 'entertainment', durationMin: 90, priceLevel: 1, requiresBooking: false, bookingPlatforms: [], tags: ['arcade', 'games', 'fun', 'casual', 'gaming'], openingHours: '11:00 AM – 11:00 PM' },
     { name: 'Unique City Experience Tour', type: 'attraction', category: 'entertainment', durationMin: 120, priceLevel: 2, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.viator, BOOKING_PLATFORMS.klook], tags: ['unique', 'local experience', 'guided', 'adventure', 'city'], openingHours: '9:00 AM – 6:00 PM' },
+    { name: 'Indoor Rock Climbing Wall', type: 'entertainment', category: 'entertainment', durationMin: 120, priceLevel: 2, requiresBooking: false, bookingPlatforms: [BOOKING_PLATFORMS.klook], tags: ['rock climbing', 'fitness', 'adventure', 'indoor'], openingHours: '9:00 AM – 10:00 PM' },
+    { name: 'Trampoline & Adventure Park', type: 'entertainment', category: 'entertainment', durationMin: 90, priceLevel: 2, requiresBooking: false, bookingPlatforms: [BOOKING_PLATFORMS.klook], tags: ['trampoline', 'adventure park', 'jumping', 'fun', 'active'], openingHours: '10:00 AM – 9:00 PM' },
+    { name: 'City Segway or E-Scooter Tour', type: 'attraction', category: 'entertainment', durationMin: 120, priceLevel: 2, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.viator, BOOKING_PLATFORMS.getyourguide], tags: ['segway', 'e-scooter', 'city tour', 'fun', 'guided'], openingHours: '9:00 AM – 6:00 PM' },
+    { name: 'Planetarium & Science Discovery Centre', type: 'museum', category: 'entertainment', durationMin: 120, priceLevel: 1, requiresBooking: false, bookingPlatforms: [BOOKING_PLATFORMS.klook], tags: ['planetarium', 'science', 'space', 'discovery', 'interactive'], openingHours: '10:00 AM – 6:00 PM' },
   ],
 };
 
-/** Build theme-specific generic activities positioned around the city center */
+/** Simple deterministic hash of a city name (returns 0–65535) */
+function cityHash(name: string): number {
+  let h = 5381;
+  for (let i = 0; i < name.length; i++) {
+    h = ((h << 5) + h + name.charCodeAt(i)) & 0xffff;
+  }
+  return Math.abs(h);
+}
+
+/** Build theme-specific generic activities positioned around the city center.
+ *  Picks 8 out of 12 templates using a deterministic city-name hash so every
+ *  city gets a different (but consistent) subset. */
 function buildGenericActivities(
   theme: ItineraryTheme,
   center: LatLng,
   cityName: string,
 ): Activity[] {
   const templates = THEME_GENERIC[theme];
-  // Deterministic offsets so the same city always generates the same map positions
+  const PICK = Math.min(8, templates.length);
+
+  // Deterministic Fisher-Yates shuffle seeded by city name
+  const indices = Array.from({ length: templates.length }, (_, i) => i);
+  let seed = cityHash(cityName);
+  for (let i = indices.length - 1; i > 0; i--) {
+    seed = ((seed * 1664525) + 1013904223) & 0x7fffffff;
+    const j = Math.abs(seed) % (i + 1);
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  // Pick first PICK indices and sort to preserve original template ordering
+  const pickedIndices = indices.slice(0, PICK).sort((a, b) => a - b);
+  const selected = pickedIndices.map(idx => templates[idx]);
+
   const offsets: [number, number][] = [
     [0.006, 0.004], [-0.005, 0.007], [0.008, -0.003], [-0.004, -0.006],
     [0.007, 0.008], [-0.009, 0.002], [0.003, -0.009], [0.010, 0.005],
@@ -321,17 +378,17 @@ function buildGenericActivities(
   const ratings = [4.2, 4.4, 4.1, 4.5, 4.3, 4.6, 4.0, 4.7];
   const reviewCounts = [1200, 3400, 890, 5600, 2100, 780, 4300, 1900];
 
-  return templates.map((t, i) => {
-    const [dLat, dLng] = offsets[i % offsets.length];
+  return selected.map((t, i) => {
+    const [dLat, dLng] = offsets[i];
     return {
       ...t,
-      id: `gen-${theme}-${i}`,
+      id: `gen-${theme}-${pickedIndices[i]}`,
       address: cityName,
       lat: center.lat + dLat,
       lng: center.lng + dLng,
       description: `${t.name} — a top ${theme.replace(/_/g, ' ')} experience in ${cityName}.`,
-      rating: ratings[i % ratings.length],
-      reviewCount: reviewCounts[i % reviewCounts.length],
+      rating: ratings[i],
+      reviewCount: reviewCounts[i],
       photos: [],
       distanceFromPrevKm: 0,
       travelTimeMin: 0,

@@ -125,6 +125,7 @@ export default function TripDetailPage() {
   const selectedFlat = allDays.find(fd => fd.day.id === selectedDayId);
   const selectedCity = selectedFlat?.city ?? null;
   const selectedDay = selectedFlat?.day ?? null;
+  const globalDayNumber = selectedDayId ? allDays.findIndex(fd => fd.day.id === selectedDayId) + 1 : 0;
   const displayOptions = liveOptions ?? selectedDay?.options ?? [];
   const selectedOption = displayOptions[selectedOptionIdx] ?? displayOptions[0] ?? null;
   const userCommutes = user?.preferences?.commuteTypes ?? ['walking'];
@@ -227,7 +228,7 @@ export default function TripDetailPage() {
                   )}
                 >
                   <span className={clsx('text-sm font-black leading-none', isActive ? 'text-white' : 'text-white/50')}>
-                    D{flat.day.dayNumber}
+                    D{i + 1}
                   </span>
                   <span className="text-[10px] leading-none mt-0.5">
                     {theme ? theme.emoji : <span className="text-white/20">·</span>}
@@ -286,7 +287,7 @@ export default function TripDetailPage() {
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-white font-bold text-base leading-tight">
-                {selectedCity.name} · Day {selectedDay.dayNumber}
+                {selectedCity.name} · Day {globalDayNumber}
               </h2>
               <p className="text-white/40 text-xs">{selectedDay.date}</p>
             </div>
