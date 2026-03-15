@@ -1,133 +1,136 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Plus, MapPin, Calendar, Hotel, Check, Loader2, Search, X } from 'lucide-react';
-import { useAuth, COMMUTE_OPTIONS, DIETARY_OPTIONS, INTEREST_OPTIONS } from '../context/AuthContext';
+import {
+  ArrowLeft, ArrowRight, Plus, MapPin, Check, Loader2, X, Hotel,
+} from 'lucide-react';
+import { useAuth, COMMUTE_OPTIONS, DIETARY_OPTIONS } from '../context/AuthContext';
 import { useTrips } from '../context/TripContext';
+import { useGoogleMaps } from '../hooks/useGoogleMaps';
 import { format, addDays, parseISO } from 'date-fns';
 import clsx from 'clsx';
-import type { NewCityData, CommuteType, DietaryRestriction, Interest, UserPreferences } from '../types';
+import type { CommuteType, DietaryRestriction, UserPreferences } from '../types';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface CityBlock {
+  id: string;
+  // City autocomplete
+  cityInput: string;
+  cityConfirmed: boolean;
+  name: string;
+  country: string;
+  countryCode: string;
+  lat: number;
+  lng: number;
+  // Accommodation autocomplete
+  accInput: string;
+  accConfirmed: boolean;
+  accName: string;
+  accAddress: string;
+  accLat: number | null;
+  accLng: number | null;
+  // Dates
+  arrivalDate: string;
+  departureDate: string;
+}
+
+function makeCityBlock(id: string, afterDate?: string): CityBlock {
+  const base = afterDate ? parseISO(afterDate) : new Date();
+  return {
+    id,
+    cityInput: '', cityConfirmed: false,
+    name: '', country: '', countryCode: '', lat: 0, lng: 0,
+    accInput: '', accConfirmed: false,
+    accName: '', accAddress: '', accLat: null, accLng: null,
+    arrivalDate: format(base, 'yyyy-MM-dd'),
+    departureDate: format(addDays(base, 3), 'yyyy-MM-dd'),
+  };
+}
 
 const STEPS = [
-  { number: 1, label: 'Destination', emoji: '🌍' },
-  { number: 2, label: 'Accommodation', emoji: '🏨' },
-  { number: 3, label: 'Preferences', emoji: '⚙️' },
-  { number: 4, label: 'Generate', emoji: '✨' },
+  { number: 1, label: 'Plan Your Trip', emoji: '🌍' },
+  { number: 2, label: 'Preferences',    emoji: '⚙️' },
+  { number: 3, label: 'Generate',       emoji: '✨' },
 ];
 
-const POPULAR_CITIES = [
-  { name: 'Paris', country: 'France', emoji: '🗼', lat: 48.8566, lng: 2.3522 },
-  { name: 'Tokyo', country: 'Japan', emoji: '🗾', lat: 35.6762, lng: 139.6503 },
-  { name: 'Bangkok', country: 'Thailand', emoji: '🇹🇭', lat: 13.7563, lng: 100.5018 },
-  { name: 'New York', country: 'USA', emoji: '🗽', lat: 40.7128, lng: -74.0060 },
-  { name: 'London', country: 'UK', emoji: '🎡', lat: 51.5074, lng: -0.1278 },
-  { name: 'Rome', country: 'Italy', emoji: '🏛️', lat: 41.9028, lng: 12.4964 },
-  { name: 'Barcelona', country: 'Spain', emoji: '⛪', lat: 41.3851, lng: 2.1734 },
-  { name: 'Dubai', country: 'UAE', emoji: '🌇', lat: 25.2048, lng: 55.2708 },
-  { name: 'Singapore', country: 'Singapore', emoji: '🇸🇬', lat: 1.3521, lng: 103.8198 },
-  { name: 'Sydney', country: 'Australia', emoji: '🦘', lat: -33.8688, lng: 151.2093 },
-  { name: 'Istanbul', country: 'Turkey', emoji: '🕌', lat: 41.0082, lng: 28.9784 },
-  { name: 'Amsterdam', country: 'Netherlands', emoji: '🌷', lat: 52.3676, lng: 4.9041 },
-];
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function NewTripPage() {
   const { user } = useAuth();
   const { createTrip, addCity, setAccommodation, generateDaysForCity } = useTrips();
   const navigate = useNavigate();
+  const apiKey = user?.preferences?.googleMapsApiKey ?? '';
+  const { isLoaded: mapsLoaded } = useGoogleMaps(apiKey);
 
   const [step, setStep] = useState(1);
   const [tripName, setTripName] = useState('');
-  const [cities, setCities] = useState<NewCityData[]>([]);
-  const [editingCityIdx, setEditingCityIdx] = useState(0);
+  const [blocks, setBlocks] = useState<CityBlock[]>([makeCityBlock('city_0')]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [createdTripId, setCreatedTripId] = useState<string | null>(null);
 
-  // Step 2: Accommodation
-  const [hotelName, setHotelName] = useState('');
-  const [hotelAddress, setHotelAddress] = useState('');
-  const [isSearchingHotel, setIsSearchingHotel] = useState(false);
-  const [checkIn, setCheckIn] = useState('');
-  const [checkOut, setCheckOut] = useState('');
-
-  // Step 3: Preferences
   const [commute, setCommute] = useState<CommuteType[]>(user?.preferences.commuteTypes ?? ['walking']);
   const [dietary, setDietary] = useState<DietaryRestriction[]>(user?.preferences.dietaryRestrictions ?? ['none']);
-  const [interests, setInterests] = useState<Interest[]>(user?.preferences.interests ?? ['tourist_attractions']);
   const [pace, setPace] = useState<UserPreferences['pacePreference']>(user?.preferences.pacePreference ?? 'moderate');
   const [budget, setBudget] = useState<UserPreferences['budgetRange']>(user?.preferences.budgetRange ?? 'moderate');
 
-  const addCityToList = (city: typeof POPULAR_CITIES[number]) => {
-    if (cities.find((c) => c.name === city.name)) return;
-    const today = format(new Date(), 'yyyy-MM-dd');
-    const newCity: NewCityData = {
-      name: city.name,
-      country: city.country,
-      countryCode: city.emoji,
-      lat: city.lat,
-      lng: city.lng,
-      arrivalDate: today,
-      departureDate: format(addDays(new Date(), 3), 'yyyy-MM-dd'),
-      accommodation: null,
-    };
-    setCities([...cities, newCity]);
+  const updateBlock = useCallback((id: string, data: Partial<CityBlock>) => {
+    setBlocks(prev => prev.map(b => b.id === id ? { ...b, ...data } : b));
+  }, []);
+
+  const addBlock = () => {
+    const last = blocks[blocks.length - 1];
+    setBlocks(prev => [...prev, makeCityBlock(`city_${Date.now()}`, last?.departureDate)]);
   };
 
-  const removeCity = (idx: number) => setCities(cities.filter((_, i) => i !== idx));
+  const removeBlock = (id: string) => setBlocks(prev => prev.filter(b => b.id !== id));
 
-  const updateCityDates = (idx: number, field: 'arrivalDate' | 'departureDate', val: string) => {
-    const updated = [...cities];
-    updated[idx] = { ...updated[idx], [field]: val };
-    setCities(updated);
-  };
+  const validBlocks = blocks.filter(b => b.cityConfirmed);
+  const canContinue = !!tripName.trim() && validBlocks.length > 0;
 
   const goNext = async () => {
     if (step === 1) {
-      if (!tripName.trim()) { alert('Please enter a trip name'); return; }
-      if (!cities.length) { alert('Add at least one city'); return; }
+      if (!tripName.trim() || !validBlocks.length) return;
       setStep(2);
     } else if (step === 2) {
       setStep(3);
-    } else if (step === 3) {
-      setStep(4);
       await generateTrip();
     }
   };
 
   const generateTrip = async () => {
     setIsGenerating(true);
-    await new Promise((r) => setTimeout(r, 1500)); // Simulate generation
+    await new Promise(r => setTimeout(r, 1500));
 
     const today = format(new Date(), 'yyyy-MM-dd');
-    const end = format(addDays(new Date(), cities.reduce((s) => s + 3, 0)), 'yyyy-MM-dd');
+    const confirmedBlocks = blocks.filter(b => b.cityConfirmed);
 
     const trip = createTrip({
       name: tripName,
       cities: [],
-      startDate: cities[0]?.arrivalDate ?? today,
-      endDate: cities[cities.length - 1]?.departureDate ?? end,
+      startDate: confirmedBlocks[0]?.arrivalDate ?? today,
+      endDate: confirmedBlocks[confirmedBlocks.length - 1]?.departureDate ?? today,
     });
 
-    for (const cityData of cities) {
+    for (const block of confirmedBlocks) {
       const city = addCity(trip.id, {
-        name: cityData.name,
-        country: cityData.country,
-        countryCode: cityData.countryCode,
-        lat: cityData.lat,
-        lng: cityData.lng,
-        arrivalDate: cityData.arrivalDate,
-        departureDate: cityData.departureDate,
+        name: block.name,
+        country: block.country,
+        countryCode: block.countryCode,
+        lat: block.lat,
+        lng: block.lng,
+        arrivalDate: block.arrivalDate,
+        departureDate: block.departureDate,
         accommodation: null,
       });
-
-      if (cityData.accommodation) {
-        const acc = cityData.accommodation;
+      if (block.accName) {
         setAccommodation(trip.id, city.id, {
-          id: `acc_${Date.now()}`,
-          name: (acc.name ?? hotelName) || 'My Hotel',
-          address: (acc.address ?? hotelAddress) || `${cityData.name} City Center`,
-          lat: acc.lat ?? (cityData.lat + 0.001),
-          lng: acc.lng ?? (cityData.lng + 0.001),
-          checkIn: checkIn || cityData.arrivalDate,
-          checkOut: checkOut || cityData.departureDate,
+          id: `acc_${Date.now()}_${city.id}`,
+          name: block.accName,
+          address: block.accAddress || `${block.name} City Center`,
+          lat: block.accLat ?? block.lat + 0.001,
+          lng: block.accLng ?? block.lng + 0.001,
+          checkIn: block.arrivalDate,
+          checkOut: block.departureDate,
           type: 'hotel',
         });
         generateDaysForCity(trip.id, city.id);
@@ -139,196 +142,116 @@ export default function NewTripPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-hero pb-10 safe-top">
+    <div className="min-h-screen bg-gradient-hero pb-28 safe-top">
       {/* Header */}
       <div className="px-5 pt-12 pb-4 flex items-center gap-3">
-        <button onClick={() => step > 1 ? setStep(step - 1) : navigate(-1)} className="w-10 h-10 rounded-2xl glass flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-all">
+        <button
+          onClick={() => (step > 1 ? setStep(step - 1) : navigate(-1))}
+          className="w-10 h-10 rounded-2xl glass flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-all"
+        >
           <ArrowLeft size={18} />
         </button>
         <div>
-          <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">New Trip</h1>
-          <p className="text-slate-500 text-sm font-medium">{STEPS[step - 1].label}</p>
+          <h1 className="text-xl font-extrabold text-white tracking-tight">New Trip</h1>
+          <p className="text-slate-400 text-sm font-medium">{STEPS[step - 1].label}</p>
         </div>
       </div>
 
       {/* Step Indicator */}
       <div className="px-5 mb-6">
-        <div className="flex gap-2">
-          {STEPS.map((s) => (
-            <div key={s.number} className={clsx(
-              'flex-1 h-1.5 rounded-full transition-all duration-500',
-              s.number <= step ? 'bg-gradient-to-r from-violet-600 to-indigo-500' : 'bg-slate-200',
-            )} />
+        <div className="flex gap-2 mb-2">
+          {STEPS.map(s => (
+            <div
+              key={s.number}
+              className={clsx(
+                'flex-1 h-1.5 rounded-full transition-all duration-500',
+                s.number <= step ? 'bg-gradient-to-r from-violet-600 to-indigo-500' : 'bg-white/10',
+              )}
+            />
           ))}
         </div>
-        <div className="flex justify-between mt-1.5">
-          {STEPS.map((s) => (
-            <span key={s.number} className={clsx('text-xs font-medium transition-colors', s.number === step ? 'text-violet-600' : 'text-slate-300')}>
-              {s.emoji}
+        <div className="flex justify-between">
+          {STEPS.map(s => (
+            <span
+              key={s.number}
+              className={clsx(
+                'text-[11px] font-semibold transition-colors',
+                s.number === step ? 'text-violet-400' : 'text-white/25',
+              )}
+            >
+              {s.emoji} {s.label}
             </span>
           ))}
         </div>
       </div>
 
       <div className="px-5">
-        {/* ── Step 1: Destination ── */}
+        {/* ── Step 1: Plan ── */}
         {step === 1 && (
           <div className="space-y-5 animate-slide-up">
+            {/* Trip Name */}
             <div>
               <label className="text-white/60 text-sm font-medium mb-2 block">Trip Name</label>
               <input
                 value={tripName}
-                onChange={(e) => setTripName(e.target.value)}
+                onChange={e => setTripName(e.target.value)}
                 placeholder="e.g. Euro Summer 2025 ✈️"
                 className="input-field text-lg font-semibold"
               />
             </div>
 
+            {/* City Blocks */}
             <div>
-              <label className="text-white/60 text-sm font-medium mb-3 block">Pick Your Cities</label>
-              <div className="grid grid-cols-3 gap-2">
-                {POPULAR_CITIES.map((city) => {
-                  const added = cities.some((c) => c.name === city.name);
-                  return (
-                    <button
-                      key={city.name}
-                      onClick={() => added ? removeCity(cities.findIndex((c) => c.name === city.name)) : addCityToList(city)}
-                      className={clsx(
-                        'rounded-2xl p-3 flex flex-col items-center gap-1 border transition-all duration-200',
-                        added
-                          ? 'bg-violet-100 border-violet-400/70'
-                          : 'glass border-white/10 hover:border-white/25',
-                      )}
-                    >
-                      <span className="text-2xl">{city.emoji}</span>
-                      <span className="text-white text-xs font-semibold">{city.name}</span>
-                      <span className="text-white/40 text-[10px]">{city.country}</span>
-                      {added && <Check size={12} className="text-violet-400" />}
-                    </button>
-                  );
-                })}
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-white/60 text-sm font-medium">Cities & Accommodation</label>
+                {validBlocks.length > 0 && (
+                  <span className="text-violet-400 text-xs font-semibold">
+                    {validBlocks.length} {validBlocks.length === 1 ? 'city' : 'cities'} added
+                  </span>
+                )}
               </div>
+              <div className="space-y-3">
+                {blocks.map((block, idx) => (
+                  <CitySearchBlock
+                    key={block.id}
+                    block={block}
+                    index={idx}
+                    canRemove={blocks.length > 1}
+                    mapsLoaded={mapsLoaded}
+                    onUpdate={data => updateBlock(block.id, data)}
+                    onRemove={() => removeBlock(block.id)}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={addBlock}
+                className="mt-3 w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border border-dashed border-violet-500/30 text-violet-400/70 hover:text-violet-400 hover:border-violet-500/60 hover:bg-violet-500/5 transition-all text-sm font-semibold"
+              >
+                <Plus size={15} /> Add Another City
+              </button>
             </div>
-
-            {cities.length > 0 && (
-              <div>
-                <label className="text-white/60 text-sm font-medium mb-2 block">Set Dates</label>
-                <div className="space-y-2">
-                  {cities.map((city, idx) => (
-                    <div key={city.name} className="glass rounded-2xl p-3 border border-white/10">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-lg">{city.countryCode}</span>
-                        <span className="text-white font-semibold">{city.name}</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-white/40 text-xs mb-1 block">Arrival</label>
-                          <input type="date" value={city.arrivalDate}
-                            onChange={(e) => updateCityDates(idx, 'arrivalDate', e.target.value)}
-                            className="input-field text-sm py-2" />
-                        </div>
-                        <div>
-                          <label className="text-white/40 text-xs mb-1 block">Departure</label>
-                          <input type="date" value={city.departureDate}
-                            onChange={(e) => updateCityDates(idx, 'departureDate', e.target.value)}
-                            className="input-field text-sm py-2" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         )}
 
-        {/* ── Step 2: Accommodation ── */}
+        {/* ── Step 2: Preferences ── */}
         {step === 2 && (
-          <div className="space-y-4 animate-slide-up">
-            <div className="glass rounded-3xl p-4 border border-white/10">
-              <h3 className="text-white font-bold mb-1">Where are you staying?</h3>
-              <p className="text-white/50 text-sm mb-4">We'll use this to generate routes that start and end at your accommodation.</p>
-
-              {cities.map((city, idx) => (
-                <div key={city.name} className="mb-4 last:mb-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-lg">{city.countryCode}</span>
-                    <span className="text-white font-semibold text-sm">{city.name}</span>
-                  </div>
-
-                  <div className="space-y-2">
-                    <input
-                      placeholder="Hotel / Airbnb name"
-                      className="input-field"
-                      onChange={(e) => {
-                        const updated = [...cities];
-                        updated[idx] = {
-                          ...updated[idx],
-                          accommodation: { ...(updated[idx].accommodation ?? {}), name: e.target.value } as any,
-                        };
-                        setCities(updated);
-                      }}
-                    />
-                    <input
-                      placeholder={`Hotel address in ${city.name}`}
-                      className="input-field"
-                      onChange={(e) => {
-                        const updated = [...cities];
-                        updated[idx] = {
-                          ...updated[idx],
-                          accommodation: {
-                            ...(updated[idx].accommodation ?? {}),
-                            name: updated[idx].accommodation?.name ?? '',
-                            address: e.target.value,
-                            lat: city.lat + 0.002,
-                            lng: city.lng + 0.002,
-                          } as any,
-                        };
-                        setCities(updated);
-                      }}
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-white/40 text-xs mb-1 block">Check-in</label>
-                        <input type="date" defaultValue={city.arrivalDate} className="input-field text-sm py-2"
-                          onChange={(e) => setCheckIn(e.target.value)} />
-                      </div>
-                      <div>
-                        <label className="text-white/40 text-xs mb-1 block">Check-out</label>
-                        <input type="date" defaultValue={city.departureDate} className="input-field text-sm py-2"
-                          onChange={(e) => setCheckOut(e.target.value)} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="glass rounded-3xl p-4 border border-white/10">
-              <p className="text-white/60 text-sm">
-                💡 <strong className="text-white">Tip:</strong> Enter your hotel address accurately for the best route optimization. We'll geocode it using Google Maps.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 3: Preferences ── */}
-        {step === 3 && (
           <div className="space-y-5 animate-slide-up">
             {/* Commute */}
             <div>
               <label className="text-white font-semibold mb-1 block">How do you get around?</label>
               <p className="text-white/50 text-xs mb-3">Select all that apply — we'll estimate travel times accordingly</p>
               <div className="flex flex-wrap gap-2">
-                {COMMUTE_OPTIONS.map((opt) => {
+                {COMMUTE_OPTIONS.map(opt => {
                   const selected = commute.includes(opt.value);
                   return (
                     <button
                       key={opt.value}
-                      onClick={() => setCommute(selected ? commute.filter((c) => c !== opt.value) : [...commute, opt.value])}
+                      onClick={() => setCommute(selected ? commute.filter(c => c !== opt.value) : [...commute, opt.value])}
                       className={clsx(
                         'flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium transition-all',
-                        selected ? 'bg-violet-500/20 border-violet-500/50 text-violet-300' : 'glass border-white/10 text-white/60 hover:text-white',
+                        selected
+                          ? 'bg-violet-500/20 border-violet-500/50 text-violet-300'
+                          : 'bg-slate-700 border-slate-600 text-slate-100 hover:bg-slate-600',
                       )}
                     >
                       <span>{opt.emoji}</span> {opt.label}
@@ -343,15 +266,17 @@ export default function NewTripPage() {
               <label className="text-white font-semibold mb-1 block">Dietary preferences</label>
               <p className="text-white/50 text-xs mb-3">We'll filter restaurant suggestions accordingly</p>
               <div className="flex flex-wrap gap-2">
-                {DIETARY_OPTIONS.map((opt) => {
+                {DIETARY_OPTIONS.map(opt => {
                   const selected = dietary.includes(opt.value);
                   return (
                     <button
                       key={opt.value}
-                      onClick={() => setDietary(selected ? dietary.filter((d) => d !== opt.value) : [...dietary, opt.value])}
+                      onClick={() => setDietary(selected ? dietary.filter(d => d !== opt.value) : [...dietary, opt.value])}
                       className={clsx(
                         'flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium transition-all',
-                        selected ? 'bg-amber-500/20 border-amber-500/50 text-amber-300' : 'glass border-white/10 text-white/60 hover:text-white',
+                        selected
+                          ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                          : 'bg-slate-700 border-slate-600 text-slate-100 hover:bg-slate-600',
                       )}
                     >
                       <span>{opt.emoji}</span> {opt.label}
@@ -369,13 +294,15 @@ export default function NewTripPage() {
                   { val: 'relaxed', emoji: '🧘', label: 'Relaxed', desc: '4 stops/day' },
                   { val: 'moderate', emoji: '🚶', label: 'Moderate', desc: '6 stops/day' },
                   { val: 'packed', emoji: '🏃', label: 'Packed', desc: '8 stops/day' },
-                ] as const).map((p) => (
+                ] as const).map(p => (
                   <button
                     key={p.val}
                     onClick={() => setPace(p.val)}
                     className={clsx(
                       'rounded-2xl p-3 border flex flex-col items-center gap-1 transition-all',
-                      pace === p.val ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300' : 'glass border-white/10 text-white/60',
+                      pace === p.val
+                        ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300'
+                        : 'glass border-white/10 text-white/60',
                     )}
                   >
                     <span className="text-2xl">{p.emoji}</span>
@@ -394,13 +321,15 @@ export default function NewTripPage() {
                   { val: 'budget', emoji: '💰', label: 'Budget', desc: '$ – $$' },
                   { val: 'moderate', emoji: '💳', label: 'Moderate', desc: '$$ – $$$' },
                   { val: 'luxury', emoji: '💎', label: 'Luxury', desc: '$$$ – $$$$' },
-                ] as const).map((b) => (
+                ] as const).map(b => (
                   <button
                     key={b.val}
                     onClick={() => setBudget(b.val)}
                     className={clsx(
                       'rounded-2xl p-3 border flex flex-col items-center gap-1 transition-all',
-                      budget === b.val ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' : 'glass border-white/10 text-white/60',
+                      budget === b.val
+                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
+                        : 'glass border-white/10 text-white/60',
                     )}
                   >
                     <span className="text-2xl">{b.emoji}</span>
@@ -413,9 +342,9 @@ export default function NewTripPage() {
           </div>
         )}
 
-        {/* ── Step 4: Generating ── */}
-        {step === 4 && (
-          <div className="flex flex-col items-center justify-center min-h-[50vh] gap-6 animate-fade-in">
+        {/* ── Step 3: Generating ── */}
+        {step === 3 && (
+          <div className="flex flex-col items-center justify-center min-h-[55vh] gap-6 animate-fade-in">
             {isGenerating ? (
               <>
                 <div className="relative">
@@ -425,26 +354,36 @@ export default function NewTripPage() {
                   <div className="absolute inset-0 rounded-3xl border-2 border-violet-500 animate-ping opacity-30" />
                 </div>
                 <div className="text-center">
-                  <h2 className="text-2xl font-black text-white mb-2">Generating Your Trip</h2>
-                  <p className="text-white/50">Finding the best places near your hotels...</p>
+                  <h2 className="text-2xl font-black text-white mb-2">Building Your Trip</h2>
+                  <p className="text-white/50 text-sm">Crafting the perfect itinerary for each day…</p>
                 </div>
                 <div className="space-y-2 w-full max-w-xs">
-                  {['📍 Locating your accommodations', '🗺️ Finding nearby attractions', '🍜 Filtering by your diet', '🔄 Optimizing 5 routes per day', '✅ Saving your itinerary'].map((step, i) => (
-                    <div key={step} className="flex items-center gap-3 glass rounded-2xl px-4 py-2 animate-fade-in" style={{ animationDelay: `${i * 0.3}s` }}>
-                      <Loader2 size={14} className="text-violet-400 animate-spin" />
-                      <span className="text-white/70 text-sm">{step}</span>
+                  {[
+                    '📍 Locating your accommodations',
+                    '🗺️ Finding nearby attractions',
+                    '🍜 Filtering by your preferences',
+                    '🔄 Optimising routes per day',
+                    '✅ Saving your itinerary',
+                  ].map((label, i) => (
+                    <div
+                      key={label}
+                      className="flex items-center gap-3 glass rounded-2xl px-4 py-2.5 animate-fade-in"
+                      style={{ animationDelay: `${i * 0.3}s` }}
+                    >
+                      <Loader2 size={14} className="text-violet-400 animate-spin shrink-0" />
+                      <span className="text-white/70 text-sm">{label}</span>
                     </div>
                   ))}
                 </div>
               </>
             ) : createdTripId ? (
               <>
-                <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center text-4xl shadow-glow-teal">
+                <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center text-4xl">
                   🎉
                 </div>
                 <div className="text-center">
                   <h2 className="text-2xl font-black text-white mb-2">Your Trip is Ready!</h2>
-                  <p className="text-white/50">5 itinerary options generated for each day</p>
+                  <p className="text-white/50 text-sm">Itinerary options generated for each day</p>
                 </div>
                 <button
                   onClick={() => navigate(`/trips/${createdTripId}`)}
@@ -457,12 +396,391 @@ export default function NewTripPage() {
           </div>
         )}
 
-        {/* Next Button */}
-        {step < 4 && (
-          <button onClick={goNext} className="btn-primary w-full mt-8 flex items-center justify-center gap-2 text-base py-4">
-            {step === 3 ? '✨ Generate Itinerary' : 'Continue'} <ArrowRight size={18} />
+        {/* Continue / Generate Button */}
+        {step < 3 && (
+          <button
+            onClick={goNext}
+            disabled={step === 1 && !canContinue}
+            className="btn-primary w-full mt-8 flex items-center justify-center gap-2 text-base py-4 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {step === 2 ? '✨ Generate Itinerary' : 'Continue'} <ArrowRight size={18} />
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── City Search Block ────────────────────────────────────────────────────────
+
+function CitySearchBlock({
+  block, index, canRemove, mapsLoaded, onUpdate, onRemove,
+}: {
+  block: CityBlock;
+  index: number;
+  canRemove: boolean;
+  mapsLoaded: boolean;
+  onUpdate: (data: Partial<CityBlock>) => void;
+  onRemove: () => void;
+}) {
+  const [citySuggestions, setCitySuggestions] = useState<google.maps.places.AutocompletePrediction[]>([]);
+  const [accSuggestions, setAccSuggestions] = useState<google.maps.places.AutocompletePrediction[]>([]);
+  const [cityLoading, setCityLoading] = useState(false);
+  const [accLoading, setAccLoading] = useState(false);
+  const [showCityDrop, setShowCityDrop] = useState(false);
+  const [showAccDrop, setShowAccDrop] = useState(false);
+
+  const acSvc = useRef<google.maps.places.AutocompleteService | null>(null);
+  const plSvc = useRef<google.maps.places.PlacesService | null>(null);
+  const cityTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const accTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (mapsLoaded && window.google?.maps?.places && !acSvc.current) {
+      acSvc.current = new window.google.maps.places.AutocompleteService();
+      plSvc.current = new window.google.maps.places.PlacesService(document.createElement('div'));
+    }
+  }, [mapsLoaded]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (!containerRef.current?.contains(e.target as Node)) {
+        setShowCityDrop(false);
+        setShowAccDrop(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // ── City search ──────────────────────────────────────────────────────────
+
+  const handleCityInput = (val: string) => {
+    onUpdate({ cityInput: val, cityConfirmed: false });
+    clearTimeout(cityTimer.current);
+    if (!val.trim() || !acSvc.current) {
+      setCitySuggestions([]);
+      setShowCityDrop(false);
+      return;
+    }
+    setCityLoading(true);
+    cityTimer.current = setTimeout(() => {
+      acSvc.current!.getPlacePredictions(
+        { input: val, types: ['(cities)'] },
+        (predictions, status) => {
+          setCityLoading(false);
+          if (
+            status === window.google.maps.places.PlacesServiceStatus.OK &&
+            predictions?.length
+          ) {
+            setCitySuggestions(predictions);
+            setShowCityDrop(true);
+          } else {
+            setCitySuggestions([]);
+            setShowCityDrop(false);
+          }
+        },
+      );
+    }, 280);
+  };
+
+  const pickCity = (pred: google.maps.places.AutocompletePrediction) => {
+    setShowCityDrop(false);
+    setCitySuggestions([]);
+    if (!plSvc.current) {
+      onUpdate({
+        cityInput: pred.structured_formatting.main_text,
+        cityConfirmed: true,
+        name: pred.structured_formatting.main_text,
+        country: pred.structured_formatting.secondary_text?.split(',').pop()?.trim() ?? '',
+        countryCode: '',
+        lat: 0, lng: 0,
+      });
+      return;
+    }
+    plSvc.current.getDetails(
+      { placeId: pred.place_id, fields: ['geometry', 'address_components', 'name'] },
+      (result, status) => {
+        if (
+          status !== window.google.maps.places.PlacesServiceStatus.OK ||
+          !result?.geometry?.location
+        ) return;
+        const lat = result.geometry.location.lat();
+        const lng = result.geometry.location.lng();
+        let country = '';
+        let countryCode = '';
+        for (const comp of result.address_components ?? []) {
+          if (comp.types.includes('country')) {
+            country = comp.long_name;
+            countryCode = comp.short_name;
+            break;
+          }
+        }
+        onUpdate({
+          cityInput: pred.structured_formatting.main_text,
+          cityConfirmed: true,
+          name: pred.structured_formatting.main_text,
+          country,
+          countryCode,
+          lat,
+          lng,
+          // reset accommodation when city changes
+          accInput: '', accConfirmed: false,
+          accName: '', accAddress: '', accLat: null, accLng: null,
+        });
+      },
+    );
+  };
+
+  // ── Accommodation search ──────────────────────────────────────────────────
+
+  const handleAccInput = (val: string) => {
+    onUpdate({ accInput: val, accConfirmed: false });
+    clearTimeout(accTimer.current);
+    if (!val.trim() || !acSvc.current || !block.cityConfirmed) {
+      setAccSuggestions([]);
+      setShowAccDrop(false);
+      return;
+    }
+    setAccLoading(true);
+    accTimer.current = setTimeout(() => {
+      acSvc.current!.getPlacePredictions(
+        {
+          input: val,
+          location: new window.google.maps.LatLng(block.lat, block.lng),
+          radius: 30000,
+        },
+        (predictions, status) => {
+          setAccLoading(false);
+          if (
+            status === window.google.maps.places.PlacesServiceStatus.OK &&
+            predictions?.length
+          ) {
+            setAccSuggestions(predictions);
+            setShowAccDrop(true);
+          } else {
+            setAccSuggestions([]);
+            setShowAccDrop(false);
+          }
+        },
+      );
+    }, 280);
+  };
+
+  const pickAcc = (pred: google.maps.places.AutocompletePrediction) => {
+    setShowAccDrop(false);
+    setAccSuggestions([]);
+    if (!plSvc.current) {
+      onUpdate({
+        accInput: pred.structured_formatting.main_text,
+        accConfirmed: true,
+        accName: pred.structured_formatting.main_text,
+        accAddress: pred.description,
+        accLat: null, accLng: null,
+      });
+      return;
+    }
+    plSvc.current.getDetails(
+      { placeId: pred.place_id, fields: ['geometry', 'name', 'formatted_address'] },
+      (result, status) => {
+        if (
+          status !== window.google.maps.places.PlacesServiceStatus.OK ||
+          !result?.geometry?.location
+        ) {
+          onUpdate({
+            accInput: pred.structured_formatting.main_text,
+            accConfirmed: true,
+            accName: pred.structured_formatting.main_text,
+            accAddress: pred.description,
+            accLat: null, accLng: null,
+          });
+          return;
+        }
+        onUpdate({
+          accInput: result.name ?? pred.structured_formatting.main_text,
+          accConfirmed: true,
+          accName: result.name ?? pred.structured_formatting.main_text,
+          accAddress: result.formatted_address ?? pred.description,
+          accLat: result.geometry.location.lat(),
+          accLng: result.geometry.location.lng(),
+        });
+      },
+    );
+  };
+
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const minDep = block.arrivalDate
+    ? format(addDays(parseISO(block.arrivalDate), 1), 'yyyy-MM-dd')
+    : format(addDays(new Date(), 1), 'yyyy-MM-dd');
+
+  return (
+    <div ref={containerRef} className="glass rounded-3xl p-4 border border-white/10 space-y-3">
+      {/* Card Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded-full bg-violet-500/25 flex items-center justify-center text-[10px] font-bold text-violet-300">
+            {index + 1}
+          </div>
+          <span className="text-white/40 text-xs font-bold uppercase tracking-widest">City {index + 1}</span>
+        </div>
+        {canRemove && (
+          <button
+            onClick={onRemove}
+            className="w-7 h-7 rounded-xl bg-red-500/10 flex items-center justify-center text-red-400/40 hover:bg-red-500/20 hover:text-red-400 transition-all"
+          >
+            <X size={13} />
+          </button>
+        )}
+      </div>
+
+      {/* ── City Search ── */}
+      <div className="relative">
+        <div className="relative">
+          <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-violet-400 pointer-events-none z-10" />
+          <input
+            value={block.cityInput}
+            onChange={e => handleCityInput(e.target.value)}
+            placeholder="Search any city or town in the world…"
+            className={clsx(
+              'input-field pl-9 pr-9 w-full',
+              block.cityConfirmed && 'border-violet-500/50',
+            )}
+          />
+          {cityLoading && (
+            <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 animate-spin pointer-events-none" />
+          )}
+          {block.cityConfirmed && !cityLoading && (
+            <Check size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-400 pointer-events-none" />
+          )}
+        </div>
+        {block.cityConfirmed && block.country && (
+          <p className="text-white/35 text-[11px] mt-1 pl-1">{block.country}</p>
+        )}
+        {/* City Dropdown */}
+        {showCityDrop && citySuggestions.length > 0 && (
+          <div
+            className="absolute top-full mt-1.5 left-0 right-0 z-50 rounded-2xl overflow-hidden border border-white/10 shadow-2xl"
+            style={{ background: 'rgba(13,19,41,0.97)', backdropFilter: 'blur(20px)' }}
+          >
+            {citySuggestions.slice(0, 6).map(pred => (
+              <button
+                key={pred.place_id}
+                onMouseDown={e => { e.preventDefault(); pickCity(pred); }}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-left border-b border-white/5 last:border-0"
+              >
+                <div className="w-7 h-7 rounded-lg bg-violet-500/15 flex items-center justify-center shrink-0">
+                  <MapPin size={12} className="text-violet-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-white text-sm font-semibold truncate">
+                    {pred.structured_formatting.main_text}
+                  </p>
+                  <p className="text-white/40 text-xs truncate">
+                    {pred.structured_formatting.secondary_text}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Accommodation Search ── */}
+      <div className="relative">
+        <div className="relative">
+          <Hotel
+            size={14}
+            className={clsx(
+              'absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-10 transition-colors',
+              block.cityConfirmed ? 'text-pink-400' : 'text-white/20',
+            )}
+          />
+          <input
+            value={block.accInput}
+            onChange={e => handleAccInput(e.target.value)}
+            disabled={!block.cityConfirmed}
+            placeholder={
+              block.cityConfirmed
+                ? `Hotel, Airbnb, hostel in ${block.name}…`
+                : 'Select a city first'
+            }
+            className={clsx(
+              'input-field pl-9 pr-9 w-full transition-all',
+              !block.cityConfirmed && 'opacity-40 cursor-not-allowed',
+              block.accConfirmed && 'border-pink-500/40',
+            )}
+          />
+          {accLoading && (
+            <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 animate-spin pointer-events-none" />
+          )}
+          {block.accConfirmed && !accLoading && (
+            <Check size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-400 pointer-events-none" />
+          )}
+        </div>
+        {block.accConfirmed && block.accAddress && (
+          <p className="text-white/35 text-[11px] mt-1 pl-1 truncate">{block.accAddress}</p>
+        )}
+        {/* Accommodation Dropdown */}
+        {showAccDrop && accSuggestions.length > 0 && (
+          <div
+            className="absolute top-full mt-1.5 left-0 right-0 z-50 rounded-2xl overflow-hidden border border-white/10 shadow-2xl"
+            style={{ background: 'rgba(13,19,41,0.97)', backdropFilter: 'blur(20px)' }}
+          >
+            {accSuggestions.slice(0, 6).map(pred => (
+              <button
+                key={pred.place_id}
+                onMouseDown={e => { e.preventDefault(); pickAcc(pred); }}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-left border-b border-white/5 last:border-0"
+              >
+                <div className="w-7 h-7 rounded-lg bg-pink-500/15 flex items-center justify-center shrink-0">
+                  <Hotel size={12} className="text-pink-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-white text-sm font-semibold truncate">
+                    {pred.structured_formatting.main_text}
+                  </p>
+                  <p className="text-white/40 text-xs truncate">
+                    {pred.structured_formatting.secondary_text}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Dates ── */}
+      <div className="grid grid-cols-2 gap-2 pt-1">
+        <div>
+          <label className="text-white/40 text-xs mb-1.5 block font-medium">Arrival</label>
+          <input
+            type="date"
+            value={block.arrivalDate}
+            min={today}
+            onChange={e => {
+              const val = e.target.value;
+              const updates: Partial<CityBlock> = { arrivalDate: val };
+              // Auto-bump departure if it would be on/before new arrival
+              if (block.departureDate && block.departureDate <= val) {
+                updates.departureDate = format(addDays(parseISO(val), 1), 'yyyy-MM-dd');
+              }
+              onUpdate(updates);
+            }}
+            className="input-field text-sm py-2 w-full"
+          />
+        </div>
+        <div>
+          <label className="text-white/40 text-xs mb-1.5 block font-medium">Departure</label>
+          <input
+            type="date"
+            value={block.departureDate}
+            min={minDep}
+            onChange={e => onUpdate({ departureDate: e.target.value })}
+            className="input-field text-sm py-2 w-full"
+          />
+        </div>
       </div>
     </div>
   );
