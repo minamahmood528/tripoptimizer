@@ -161,6 +161,18 @@ export default function ExplorePage() {
     return result;
   }, [places, sortBy, priceFilters, minRating, searchCenter]);
 
+  // Map markers: only places within ~10 min walking distance (~800 m) of search center
+  const MAP_NEARBY_KM = 0.8;
+  const mapMarkerPlaces = useMemo(
+    () =>
+      searchCenter
+        ? filteredSortedPlaces
+            .filter((p) => approxDist(searchCenter, p) <= MAP_NEARBY_KM)
+            .slice(0, 20)
+        : filteredSortedPlaces.slice(0, 20),
+    [filteredSortedPlaces, searchCenter],
+  );
+
   const isFoodCategory = FOOD_CATEGORIES.has(filter);
   const activeFilterCount =
     (priceFilters.length > 0 ? 1 : 0) +
@@ -402,7 +414,7 @@ export default function ExplorePage() {
         {mapCenter ? (
           <TripMap
             accommodation={centerPin}
-            activities={filteredSortedPlaces.slice(0, 20)}
+            activities={mapMarkerPlaces}
             height="260px"
             showRoute={false}
             autoFitBounds={false}
