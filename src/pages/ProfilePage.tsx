@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Save, Key, Eye, EyeOff, CheckCircle, ChevronRight, Bell, Globe, DollarSign } from 'lucide-react';
+import { LogOut, Save, CheckCircle } from 'lucide-react';
 import { useAuth, COMMUTE_OPTIONS, DIETARY_OPTIONS, INTEREST_OPTIONS } from '../context/AuthContext';
 import type { CommuteType, DietaryRestriction, Interest, UserPreferences } from '../types';
 import clsx from 'clsx';
@@ -16,9 +16,7 @@ export default function ProfilePage() {
   const [interests, setInterests] = useState<Interest[]>(prefs?.interests ?? []);
   const [pace, setPace] = useState(prefs?.pacePreference ?? 'moderate');
   const [budget, setBudget] = useState(prefs?.budgetRange ?? 'moderate');
-  const [currency, setCurrency] = useState(prefs?.currency ?? 'USD');
-  const [apiKey, setApiKey] = useState(prefs?.googleMapsApiKey ?? '');
-  const [showApiKey, setShowApiKey] = useState(false);
+  const [currency] = useState(prefs?.currency ?? 'USD');
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
@@ -29,7 +27,6 @@ export default function ProfilePage() {
       pacePreference: pace as UserPreferences['pacePreference'],
       budgetRange: budget as UserPreferences['budgetRange'],
       currency,
-      googleMapsApiKey: apiKey,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
@@ -60,39 +57,6 @@ export default function ProfilePage() {
       </div>
 
       <div className="px-5 space-y-6">
-
-        {/* Google Maps API Key */}
-        <section className="glass rounded-3xl p-5 border border-white/10">
-          <div className="flex items-center gap-2 mb-3">
-            <Key size={18} className="text-amber-400" />
-            <h2 className="text-white font-bold">Google Maps API Key</h2>
-          </div>
-          <p className="text-white/50 text-sm mb-3">
-            Required for real places data worldwide. Get yours free at{' '}
-            <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="text-violet-400 underline">console.cloud.google.com</a>.
-            Enable: Maps JS, Places, Directions, Geocoding APIs.
-          </p>
-          <div className="relative">
-            <input
-              type={showApiKey ? 'text' : 'password'}
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="AIza..."
-              className="input-field font-mono text-sm pr-12"
-            />
-            <button
-              onClick={() => setShowApiKey(!showApiKey)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70"
-            >
-              {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </div>
-          {apiKey && (
-            <p className="text-emerald-400 text-xs mt-2 flex items-center gap-1">
-              <CheckCircle size={12} /> API key configured — real places will load for any city
-            </p>
-          )}
-        </section>
 
         {/* Commute Preferences */}
         <section>
@@ -231,9 +195,7 @@ export default function ProfilePage() {
           </div>
           <div className="flex items-center justify-between">
             <span className="text-white/60 text-sm">Maps</span>
-            <span className={clsx('text-sm', apiKey ? 'text-emerald-400' : 'text-amber-400')}>
-              {apiKey ? '✅ Connected' : '⚠️ Key needed'}
-            </span>
+            <span className="text-emerald-400 text-sm">✅ Connected</span>
           </div>
         </div>
 
