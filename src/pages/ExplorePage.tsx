@@ -348,7 +348,10 @@ export default function ExplorePage() {
     : [];
 
   return (
-    <div className="min-h-screen bg-gradient-hero pb-28 safe-top max-w-3xl mx-auto">
+    <div className="h-screen bg-gradient-hero max-w-3xl mx-auto flex flex-col overflow-hidden">
+
+      {/* ── Frozen top: header + chips + map ─────────────────────────────── */}
+      <div className="flex-shrink-0 safe-top">
 
       {/* Header */}
       <div className="px-5 pt-12 pb-3">
@@ -408,8 +411,8 @@ export default function ExplorePage() {
         })}
       </div>
 
-      {/* Map — sticky so it stays visible while the results list scrolls */}
-      <div className="sticky top-0 z-20 bg-[#0D1329] px-5 pb-3 relative">
+      {/* Map */}
+      <div className="px-5 pb-3 relative">
         {mapCenter ? (
           <TripMap
             accommodation={centerPin}
@@ -442,9 +445,10 @@ export default function ExplorePage() {
         )}
 
       </div>
+      </div>{/* end frozen top */}
 
-      {/* Results */}
-      <div className="px-5">
+      {/* ── Scrollable results ───────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto px-5 pb-28">
 
         {/* Status bar */}
         <div className="flex items-center justify-between mb-2">
