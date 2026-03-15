@@ -23,12 +23,16 @@ const TripContext = createContext<TripCtx>({} as TripCtx);
 
 const STORAGE_KEY = 'tripoptimizer_trips';
 
+function uid(prefix: string) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
 export function TripProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
 
-  // Load user trips from localStorage
+  // Load user trips from localStorage on user change
   useEffect(() => {
     if (!user) { setTrips([]); return; }
     try {
@@ -37,146 +41,199 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
     } catch { setTrips([]); }
   }, [user]);
 
-  const persist = useCallback((updated: Trip[]) => {
+  // Write to localStorage — called inside functional setTrips updates
+  const writeStorage = useCallback((updated: Trip[]) => {
     if (!user) return;
-    setTrips(updated);
     localStorage.setItem(`${STORAGE_KEY}_${user.id}`, JSON.stringify(updated));
   }, [user]);
+
+  // --- MUTATIONS — all use setTrips(prev => ...) to avoid stale closures ---
 
   const createTrip = useCallback((data: Omit<Trip, 'id' | 'userId' | 'createdAt' | 'status'>): Trip => {
     const trip: Trip = {
       ...data,
-      id: `trip_${Date.now()}`,
+      id: uid('trip'),
       userId: user!.id,
       status: 'planning',
       createdAt: new Date().toISOString(),
     };
-    persist([...trips, trip]);
+    setTrips(prev => {
+      const updated = [...prev, trip];
+      writeStorage(updated);
+      return updated;
+    });
     return trip;
-  }, [trips, user, persist]);
+  }, [user, writeStorage]);
 
   const updateTrip = useCallback((id: string, data: Partial<Trip>) => {
-    const updated = trips.map((t) => (t.id === id ? { ...t, ...data } : t));
-    persist(updated);
-    if (activeTrip?.id === id) setActiveTrip((prev) => prev ? { ...prev, ...data } : null);
-  }, [trips, activeTrip, persist]);
+    setTrips(prev => {
+      const updated = prev.map(t => t.id === id ? { ...t, ...data } : t);
+      writeStorage(updated);
+      return updated;
+    });
+    setActiveTrip(prev => prev?.id === id ? { ...prev, ...data } : prev);
+  }, [writeStorage]);
 
   const deleteTrip = useCallback((id: string) => {
-    persist(trips.filter((t) => t.id !== id));
-    if (activeTrip?.id === id) setActiveTrip(null);
-  }, [trips, activeTrip, persist]);
+    setTrips(prev => {
+      const updated = prev.filter(t => t.id !== id);
+      writeStorage(updated);
+      return updated;
+    });
+    setActiveTrip(prev => prev?.id === id ? null : prev);
+  }, [writeStorage]);
 
   const addCity = useCallback((tripId: string, city: Omit<CityEntry, 'id' | 'tripId' | 'itineraryDays'>): CityEntry => {
     const newCity: CityEntry = {
       ...city,
-      id: `city_${Date.now()}`,
+      id: uid('city'),
       tripId,
       itineraryDays: [],
     };
-    const updated = trips.map((t) =>
-      t.id === tripId ? { ...t, cities: [...t.cities, newCity] } : t,
-    );
-    persist(updated);
+    setTrips(prev => {
+      const updated = prev.map(t =>
+        t.id === tripId ? { ...t, cities: [...t.cities, newCity] } : t,
+      );
+      writeStorage(updated);
+      return updated;
+    });
     return newCity;
-  }, [trips, persist]);
+  }, [writeStorage]);
 
   const updateCity = useCallback((tripId: string, cityId: string, data: Partial<CityEntry>) => {
-    const updated = trips.map((t) =>
-      t.id === tripId
-        ? { ...t, cities: t.cities.map((c) => (c.id === cityId ? { ...c, ...data } : c)) }
-        : t,
-    );
-    persist(updated);
-  }, [trips, persist]);
+    setTrips(prev => {
+      const updated = prev.map(t =>
+        t.id === tripId
+          ? { ...t, cities: t.cities.map(c => c.id === cityId ? { ...c, ...data } : c) }
+          : t,
+      );
+      writeStorage(updated);
+      return updated;
+    });
+  }, [writeStorage]);
 
   const setAccommodation = useCallback((tripId: string, cityId: string, acc: Accommodation) => {
-    updateCity(tripId, cityId, { accommodation: acc });
-  }, [updateCity]);
+    // Inline instead of calling updateCity so the functional update chains correctly
+    setTrips(prev => {
+      const updated = prev.map(t =>
+        t.id === tripId
+          ? { ...t, cities: t.cities.map(c => c.id === cityId ? { ...c, accommodation: acc } : c) }
+          : t,
+      );
+      writeStorage(updated);
+      return updated;
+    });
+  }, [writeStorage]);
 
   const generateDaysForCity = useCallback((tripId: string, cityId: string) => {
     if (!user) return;
-    const trip = trips.find((t) => t.id === tripId);
-    const city = trip?.cities.find((c) => c.id === cityId);
-    if (!city?.accommodation) return;
+    // Use functional update so we read the latest prev (includes accommodation set just before this call)
+    setTrips(prev => {
+      const trip = prev.find(t => t.id === tripId);
+      const city = trip?.cities.find(c => c.id === cityId);
+      if (!city?.accommodation) return prev; // no change — accommodation not set yet
 
-    const days = eachDayOfInterval({
-      start: parseISO(city.arrivalDate),
-      end: parseISO(city.departureDate),
-    });
+      let days: Date[];
+      try {
+        days = eachDayOfInterval({
+          start: parseISO(city.arrivalDate),
+          end: parseISO(city.departureDate),
+        });
+      } catch {
+        return prev;
+      }
 
-    const previouslyVisited: string[] = city.itineraryDays
-      .flatMap((d) => d.options[d.selectedOptionIndex]?.activities.map((a) => a.id) ?? []);
+      const previouslyVisited: string[] = city.itineraryDays
+        .flatMap(d => d.options[d.selectedOptionIndex]?.activities.map(a => a.id) ?? []);
 
-    const itineraryDays: ItineraryDay[] = days.map((date, i) => {
-      const visitedSoFar = [
-        ...previouslyVisited,
-        ...city.itineraryDays.slice(0, i).flatMap((d) =>
-          d.options[d.selectedOptionIndex]?.activities.map((a) => a.id) ?? [],
-        ),
-      ];
-      return buildItineraryDay(
-        cityId,
-        format(date, 'yyyy-MM-dd'),
-        i + 1,
-        city.accommodation!,
-        city.name,
-        visitedSoFar,
-        user.preferences,
+      const itineraryDays: ItineraryDay[] = days.map((date, i) => {
+        const visitedSoFar = [
+          ...previouslyVisited,
+          ...city.itineraryDays.slice(0, i).flatMap(d =>
+            d.options[d.selectedOptionIndex]?.activities.map(a => a.id) ?? [],
+          ),
+        ];
+        return buildItineraryDay(
+          cityId,
+          format(date, 'yyyy-MM-dd'),
+          i + 1,
+          city.accommodation!,
+          city.name,
+          visitedSoFar,
+          user.preferences,
+        );
+      });
+
+      const updated = prev.map(t =>
+        t.id === tripId
+          ? { ...t, cities: t.cities.map(c => c.id === cityId ? { ...c, itineraryDays } : c) }
+          : t,
       );
+      writeStorage(updated);
+      return updated;
     });
-
-    updateCity(tripId, cityId, { itineraryDays });
-  }, [trips, user, updateCity]);
+  }, [user, writeStorage]);
 
   const addActivityToDay = useCallback((
     tripId: string, cityId: string, dayId: string, activity: Activity, time?: string,
   ) => {
-    const updated = trips.map((t) =>
-      t.id !== tripId ? t : {
-        ...t,
-        cities: t.cities.map((c) =>
-          c.id !== cityId ? c : {
-            ...c,
-            itineraryDays: c.itineraryDays.map((d) => {
-              if (d.id !== dayId) return d;
-              const optIdx = d.selectedOptionIndex;
-              const newActivity: Activity = { ...activity, arrivalTime: time ?? '10:00', distanceFromPrevKm: 0, travelTimeMin: 0 };
-              return {
-                ...d,
-                options: d.options.map((opt, idx) =>
-                  idx === optIdx ? { ...opt, activities: [...opt.activities, newActivity] } : opt,
-                ),
-              };
-            }),
-          },
-        ),
-      },
-    );
-    persist(updated);
-  }, [trips, persist]);
+    setTrips(prev => {
+      const updated = prev.map(t =>
+        t.id !== tripId ? t : {
+          ...t,
+          cities: t.cities.map(c =>
+            c.id !== cityId ? c : {
+              ...c,
+              itineraryDays: c.itineraryDays.map(d => {
+                if (d.id !== dayId) return d;
+                const optIdx = d.selectedOptionIndex;
+                const newActivity: Activity = {
+                  ...activity,
+                  arrivalTime: time ?? '10:00',
+                  distanceFromPrevKm: 0,
+                  travelTimeMin: 0,
+                };
+                return {
+                  ...d,
+                  options: d.options.map((opt, idx) =>
+                    idx === optIdx ? { ...opt, activities: [...opt.activities, newActivity] } : opt,
+                  ),
+                };
+              }),
+            },
+          ),
+        },
+      );
+      writeStorage(updated);
+      return updated;
+    });
+  }, [writeStorage]);
 
   const selectItineraryOption = useCallback((
     tripId: string, cityId: string, dayId: string, optionIndex: number,
   ) => {
-    const updated = trips.map((t) =>
-      t.id === tripId
-        ? {
-          ...t,
-          cities: t.cities.map((c) =>
-            c.id === cityId
-              ? {
-                ...c,
-                itineraryDays: c.itineraryDays.map((d) =>
-                  d.id === dayId ? { ...d, selectedOptionIndex: optionIndex } : d,
-                ),
-              }
-              : c,
-          ),
-        }
-        : t,
-    );
-    persist(updated);
-  }, [trips, persist]);
+    setTrips(prev => {
+      const updated = prev.map(t =>
+        t.id === tripId
+          ? {
+            ...t,
+            cities: t.cities.map(c =>
+              c.id === cityId
+                ? {
+                  ...c,
+                  itineraryDays: c.itineraryDays.map(d =>
+                    d.id === dayId ? { ...d, selectedOptionIndex: optionIndex } : d,
+                  ),
+                }
+                : c,
+            ),
+          }
+          : t,
+      );
+      writeStorage(updated);
+      return updated;
+    });
+  }, [writeStorage]);
 
   return (
     <TripContext.Provider value={{
