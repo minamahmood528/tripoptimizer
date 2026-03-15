@@ -315,10 +315,10 @@ export default function ExplorePage() {
 
   useEffect(() => {
     if (!isLoaded || !searchCenter) return;
-    if (initialSearchDone.current && searchCenter === mapCenter) return;
+    if (initialSearchDone.current) return;
     initialSearchDone.current = true;
     doSearch(searchCenter, getTypes(filter), buildDietaryKeyword(dietaryFilters));
-  }, [isLoaded, searchCenter, filter, doSearch, mapCenter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoaded, searchCenter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isLoaded || !searchCenter) return;
