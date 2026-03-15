@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Compass, Loader2, RefreshCw, Navigation, Search, X, Star, BookmarkPlus, MapPin } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { Compass, Loader2, RefreshCw, Navigation, Search, X, Star, BookmarkPlus, MapPin, SlidersHorizontal } from 'lucide-react';
+import { useAuth, DIETARY_OPTIONS } from '../context/AuthContext';
 import { streamCitywidePlaces } from '../utils/googlePlaces';
 import { getCategoryIcon, getPriceLevelLabel } from '../utils/itinerary';
 import TripMap from '../components/maps/TripMap';
 import ActivityCard from '../components/cards/ActivityCard';
 import AddToTripModal from '../components/explore/AddToTripModal';
-import type { Activity, Accommodation, LatLng } from '../types';
+import type { Activity, Accommodation, DietaryRestriction, LatLng } from '../types';
 import clsx from 'clsx';
 import { useGoogleMaps } from '../hooks/useGoogleMaps';
 
@@ -61,6 +61,34 @@ const FILTER_TYPES = [
   },
 ];
 
+// Map profile interests to a matching FILTER_TYPES label
+const INTEREST_TO_FILTER: Record<string, string> = {
+  tourist_attractions: 'Attractions',
+  nightlife: 'Nightlife',
+  restaurants: 'Food',
+  shopping: 'Shopping',
+  museums: 'Museums',
+  outdoor: 'Parks',
+  wellness: 'Spas',
+  sports: 'Sports',
+  historical: 'Museums',
+  beaches: 'Parks',
+  photography: 'Attractions',
+  local_experiences: 'Food',
+};
+
+// Map dietary restriction value to a Google Places keyword
+const DIETARY_KEYWORDS: Partial<Record<DietaryRestriction, string>> = {
+  halal: 'halal',
+  vegan: 'vegan',
+  vegetarian: 'vegetarian',
+  kosher: 'kosher',
+  gluten_free: 'gluten free',
+  pescatarian: 'pescatarian',
+  dairy_free: 'dairy free',
+  nut_free: 'nut free',
+};
+
 // Single violet colour for all explore markers
 const EXPLORE_MARKER_COLOR = '#7C3AED';
 
@@ -72,7 +100,28 @@ export default function ExplorePage() {
   const apiKey = user?.preferences?.googleMapsApiKey ?? '';
   const { isLoaded } = useGoogleMaps(apiKey);
 
-  const [filter, setFilter] = useState('Attractions');
+  // Profile-derived defaults
+  const profileInterests = user?.preferences?.interests ?? [];
+  const profileDietary = (user?.preferences?.dietaryRestrictions ?? []).filter(
+    (d) => d !== 'none',
+  ) as DietaryRestriction[];
+
+  // Pick initial category from profile interests, fall back to Attractions
+  const getInitialFilter = (): string => {
+    for (const interest of profileInterests) {
+      const label = INTEREST_TO_FILTER[interest];
+      if (label) return label;
+    }
+    return 'Attractions';
+  };
+
+  const [filter, setFilter] = useState(getInitialFilter());
+  // Pre-select first profile dietary restriction (if any)
+  const [dietaryFilter, setDietaryFilter] = useState<DietaryRestriction | null>(
+    profileDietary.length > 0 ? profileDietary[0] : null,
+  );
+  const [showDietaryRow, setShowDietaryRow] = useState(false);
+
   const [places, setPlaces] = useState<Activity[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -95,6 +144,10 @@ export default function ExplorePage() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Convert dietary restriction to a keyword string
+  const getDietaryKeyword = (diet: DietaryRestriction | null): string | undefined =>
+    diet ? DIETARY_KEYWORDS[diet] : undefined;
 
   // ── 1. Geolocation on mount ───────────────────────────────────────────────
   useEffect(() => {
@@ -147,13 +200,13 @@ export default function ExplorePage() {
       setSearchCenter(loc);
       setShowSearchHere(false);
       setPopupActivity(null);
-      doSearch(loc, getTypes(filter));
+      doSearch(loc, getTypes(filter), getDietaryKeyword(dietaryFilter));
     });
     autocompleteRef.current = ac;
   }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 3. City-wide grid search — 5 parallel zones, ~100 unique results ────────
-  const doSearch = useCallback((center: LatLng, types: string[]) => {
+  const doSearch = useCallback((center: LatLng, types: string[], keyword?: string) => {
     if (!window.google?.maps?.places) return;
     searchAbortRef.current = true; // signal any in-flight stream to stop
     setIsSearching(true);
@@ -185,6 +238,7 @@ export default function ExplorePage() {
         setIsSearching(false);
         setIsLoadingMore(false);
       },
+      keyword,
     );
   }, []);
 
@@ -192,14 +246,20 @@ export default function ExplorePage() {
     if (!isLoaded || !searchCenter) return;
     if (initialSearchDone.current && searchCenter === mapCenter) return;
     initialSearchDone.current = true;
-    doSearch(searchCenter, getTypes(filter));
-  }, [isLoaded, searchCenter, filter, doSearch, mapCenter]);
+    doSearch(searchCenter, getTypes(filter), getDietaryKeyword(dietaryFilter));
+  }, [isLoaded, searchCenter, filter, doSearch, mapCenter]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-search when filter chip changes
+  // Re-search when category filter chip changes
   useEffect(() => {
     if (!isLoaded || !searchCenter) return;
-    doSearch(searchCenter, getTypes(filter));
+    doSearch(searchCenter, getTypes(filter), getDietaryKeyword(dietaryFilter));
   }, [filter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-search when dietary filter changes
+  useEffect(() => {
+    if (!isLoaded || !searchCenter) return;
+    doSearch(searchCenter, getTypes(filter), getDietaryKeyword(dietaryFilter));
+  }, [dietaryFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 4. Map idle → "Search this area" ────────────────────────────────────
   const handleMapIdle = useCallback((center: LatLng) => {
@@ -211,7 +271,7 @@ export default function ExplorePage() {
   const handleSearchHere = () => {
     if (!pendingCenter) return;
     setSearchCenter(pendingCenter);
-    doSearch(pendingCenter, getTypes(filter));
+    doSearch(pendingCenter, getTypes(filter), getDietaryKeyword(dietaryFilter));
     setShowSearchHere(false);
   };
 
@@ -221,7 +281,7 @@ export default function ExplorePage() {
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setMapCenter(loc); setSearchCenter(loc); setSearchQuery('');
-        doSearch(loc, getTypes(filter));
+        doSearch(loc, getTypes(filter), getDietaryKeyword(dietaryFilter));
       },
       () => {},
       { timeout: 5000 },
@@ -252,6 +312,8 @@ export default function ExplorePage() {
     return '📍 Showing places near you';
   };
 
+  const activeDietaryOption = DIETARY_OPTIONS.find((d) => d.value === dietaryFilter);
+
   return (
     <div className="min-h-screen bg-gradient-hero pb-28 safe-top">
 
@@ -262,13 +324,28 @@ export default function ExplorePage() {
             <h1 className="text-2xl font-extrabold text-white tracking-tight">Explore</h1>
             <p className="text-slate-400 text-sm font-medium mt-0.5">{subtitleText()}</p>
           </div>
-          {geoStatus === 'ok' && (
-            <button onClick={handleRecenter}
-              className="w-10 h-10 rounded-2xl glass flex items-center justify-center text-violet-400 hover:text-violet-300 transition-all"
-              title="Back to my location">
-              <Navigation size={18} />
+          <div className="flex items-center gap-2">
+            {/* Dietary filter toggle */}
+            <button
+              onClick={() => setShowDietaryRow((v) => !v)}
+              className={clsx(
+                'w-10 h-10 rounded-2xl flex items-center justify-center transition-all',
+                showDietaryRow || dietaryFilter
+                  ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300'
+                  : 'glass text-white/50 hover:text-white/80',
+              )}
+              title="Diet filter"
+            >
+              <SlidersHorizontal size={18} />
             </button>
-          )}
+            {geoStatus === 'ok' && (
+              <button onClick={handleRecenter}
+                className="w-10 h-10 rounded-2xl glass flex items-center justify-center text-violet-400 hover:text-violet-300 transition-all"
+                title="Back to my location">
+                <Navigation size={18} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Worldwide search bar */}
@@ -291,20 +368,67 @@ export default function ExplorePage() {
         </div>
       </div>
 
-      {/* Filter chips */}
-      <div className="flex gap-2 overflow-x-auto scroll-hidden px-5 pb-3">
-        {FILTER_TYPES.map((f) => (
-          <button key={f.label} onClick={() => setFilter(f.label)}
-            className={clsx(
-              'flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-semibold transition-all',
-              filter === f.label
-                ? 'bg-violet-100 border-violet-400/60 text-violet-700'
-                : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/20 hover:text-white',
-            )}>
-            <span>{f.emoji}</span> {f.label}
-          </button>
-        ))}
+      {/* Category filter chips */}
+      <div className="flex gap-2 overflow-x-auto scroll-hidden px-5 pb-2">
+        {FILTER_TYPES.map((f) => {
+          const isPersonalized = profileInterests.some((i) => INTEREST_TO_FILTER[i] === f.label);
+          return (
+            <button key={f.label} onClick={() => setFilter(f.label)}
+              className={clsx(
+                'flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-semibold transition-all',
+                filter === f.label
+                  ? 'bg-violet-100 border-violet-400/60 text-violet-700'
+                  : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/20 hover:text-white',
+              )}>
+              <span>{f.emoji}</span>
+              {f.label}
+              {isPersonalized && filter !== f.label && (
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-400 opacity-70" />
+              )}
+            </button>
+          );
+        })}
       </div>
+
+      {/* Dietary filter row — shown when toggle is on OR a dietary filter is active */}
+      {(showDietaryRow || dietaryFilter) && (
+        <div className="flex items-center gap-2 overflow-x-auto scroll-hidden px-5 pb-3">
+          <span className="flex-shrink-0 text-xs text-white/40 font-semibold uppercase tracking-wide">Diet:</span>
+          <button
+            onClick={() => setDietaryFilter(null)}
+            className={clsx(
+              'flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all',
+              !dietaryFilter
+                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                : 'bg-white/5 border-white/15 text-white/50 hover:bg-white/10 hover:text-white/80',
+            )}>
+            All
+          </button>
+          {DIETARY_OPTIONS.filter((d) => d.value !== 'none').map((opt) => {
+            const isProfilePref = profileDietary.includes(opt.value as DietaryRestriction);
+            const isActive = dietaryFilter === opt.value;
+            return (
+              <button
+                key={opt.value}
+                onClick={() => setDietaryFilter(isActive ? null : opt.value as DietaryRestriction)}
+                className={clsx(
+                  'flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all',
+                  isActive
+                    ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                    : isProfilePref
+                    ? 'bg-white/10 border-amber-500/25 text-white/80 hover:bg-amber-500/15 hover:border-amber-500/40'
+                    : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80',
+                )}>
+                <span>{opt.emoji}</span>
+                {opt.label}
+                {isProfilePref && !isActive && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 opacity-60" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Map + floating popup */}
       <div className="px-5 mb-3 relative">
@@ -385,14 +509,24 @@ export default function ExplorePage() {
       <div className="px-5">
         {/* Status bar */}
         <div className="flex items-center justify-between mb-3">
-          <p className="text-slate-400 text-sm font-medium">
-            {isSearching
-              ? 'Finding places…'
-              : `${places.length} places found${locationLabel ? ` in ${locationLabel}` : ''}`}
-            {isLoadingMore && !isSearching && (
-              <span className="text-violet-400 ml-1">· loading more…</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-slate-400 text-sm font-medium">
+              {isSearching
+                ? 'Finding places…'
+                : `${places.length} places found${locationLabel ? ` in ${locationLabel}` : ''}`}
+              {isLoadingMore && !isSearching && (
+                <span className="text-violet-400 ml-1">· loading more…</span>
+              )}
+            </p>
+            {activeDietaryOption && (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+                {activeDietaryOption.emoji} {activeDietaryOption.label}
+                <button onClick={() => setDietaryFilter(null)} className="ml-0.5 hover:text-amber-200">
+                  <X size={10} />
+                </button>
+              </span>
             )}
-          </p>
+          </div>
           {(isSearching || isLoadingMore) && <Loader2 size={16} className="text-violet-400 animate-spin" />}
         </div>
 

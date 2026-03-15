@@ -289,6 +289,7 @@ export function streamCitywidePlaces(
   types: string[],
   onBatch: (places: Activity[]) => void,
   onComplete: () => void,
+  keyword?: string,
 ): void {
   if (!window.google?.maps?.places) { onComplete(); return; }
 
@@ -382,7 +383,7 @@ export function streamCitywidePlaces(
       types.forEach((placeType) => {
         const service = new window.google.maps.places.PlacesService(document.createElement('div'));
         service.nearbySearch(
-          { location: zoneCenter, radius, type: placeType as any },
+          { location: zoneCenter, radius, type: placeType as any, ...(keyword ? { keyword } : {}) },
           handleResult,
         );
       });
