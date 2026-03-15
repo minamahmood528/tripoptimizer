@@ -67,6 +67,7 @@ export const THEME_SEARCH_TYPES: Record<string, string[][]> = {
   foodie: [['restaurant'], ['cafe', 'bakery'], ['food', 'meal_takeaway']],
   local_life: [['park'], ['shopping_mall', 'store'], ['restaurant', 'cafe']],
   adventure_nightlife: [['bar', 'night_club'], ['amusement_park', 'bowling_alley'], ['restaurant']],
+  fun_experiences: [['amusement_park', 'bowling_alley'], ['tourist_attraction'], ['casino', 'movie_theater']],
   essentials: [['hospital'], ['pharmacy'], ['police', 'embassy']],
 };
 

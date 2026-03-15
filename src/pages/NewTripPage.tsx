@@ -130,17 +130,21 @@ export default function NewTripPage() {
             start: parseISO(block.arrivalDate),
             end: parseISO(block.departureDate),
           });
-          itineraryDays = days.map((date, i) =>
-            buildItineraryDay(
+          let visitedIds: string[] = [];
+          itineraryDays = days.map((date, i) => {
+            const day = buildItineraryDay(
               cityId,
               format(date, 'yyyy-MM-dd'),
               i + 1,
               accommodation,
               block.name,
-              [],
+              visitedIds,
               user!.preferences,
-            )
-          );
+            );
+            const opt = day.options[0];
+            if (opt) visitedIds = [...visitedIds, ...opt.activities.map((a: import('../types').Activity) => a.id).filter((id: string) => !id.startsWith('meal-'))];
+            return day;
+          });
         } catch { /* invalid date range — leave itineraryDays empty */ }
       }
 

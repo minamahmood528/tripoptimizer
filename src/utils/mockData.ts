@@ -239,4 +239,5 @@ export const THEME_LABELS: Record<string, { name: string; emoji: string; color: 
   foodie: { name: "Foodie's Paradise", emoji: '🍜', color: 'from-orange-500 to-red-600', description: 'Restaurants, cafés & food markets' },
   local_life: { name: 'Local Life', emoji: '🌿', color: 'from-green-500 to-teal-600', description: 'Hidden gems & neighbourhood vibes' },
   adventure_nightlife: { name: 'Adventure & Night', emoji: '🌙', color: 'from-indigo-500 to-violet-700', description: 'Entertainment, bars & nightlife' },
+  fun_experiences: { name: 'Fun & Experiences', emoji: '🎢', color: 'from-yellow-400 to-orange-500', description: 'Unique thrills, immersive experiences & city highs' },
 };

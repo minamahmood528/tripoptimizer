@@ -152,25 +152,26 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
         return prev;
       }
 
+      // Start with activities already visited in the old itinerary (before regeneration)
       const previouslyVisited: string[] = city.itineraryDays
-        .flatMap(d => d.options[d.selectedOptionIndex]?.activities.map(a => a.id) ?? []);
+        .flatMap(d => d.options[d.selectedOptionIndex]?.activities.map(a => a.id) ?? [])
+        .filter(id => !id.startsWith('meal-'));
 
+      // Accumulate across newly generated days so no location repeats
+      let accVisited = [...previouslyVisited];
       const itineraryDays: ItineraryDay[] = days.map((date, i) => {
-        const visitedSoFar = [
-          ...previouslyVisited,
-          ...city.itineraryDays.slice(0, i).flatMap(d =>
-            d.options[d.selectedOptionIndex]?.activities.map(a => a.id) ?? [],
-          ),
-        ];
-        return buildItineraryDay(
+        const day = buildItineraryDay(
           cityId,
           format(date, 'yyyy-MM-dd'),
           i + 1,
           city.accommodation!,
           city.name,
-          visitedSoFar,
+          accVisited,
           user.preferences,
         );
+        const opt = day.options[0];
+        if (opt) accVisited = [...accVisited, ...opt.activities.map(a => a.id).filter(id => !id.startsWith('meal-'))];
+        return day;
       });
 
       const updated = prev.map(t =>

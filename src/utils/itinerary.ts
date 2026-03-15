@@ -109,8 +109,93 @@ function filterByDietary(pool: Activity[], dietary: string[] | undefined): Activ
   });
 }
 
+// ─── Meal Injection ───────────────────────────────────────────────────────────
+
+function buildMealSlot(
+  mealType: 'lunch' | 'dinner',
+  lat: number,
+  lng: number,
+  cityName: string,
+  dietary: string[] | undefined,
+  idx: number,
+): Activity {
+  const isHalal = dietary?.some(d => d === 'halal' || d === 'kosher');
+  const isVegan = dietary?.includes('vegan');
+  const isVeg = dietary?.includes('vegetarian') || isVegan;
+  const prefix = isHalal ? 'Halal ' : isVegan ? 'Vegan ' : isVeg ? 'Vegetarian ' : '';
+  const name = mealType === 'lunch' ? `${prefix}Lunch Stop` : `${prefix}Dinner Restaurant`;
+  const durationMin = mealType === 'lunch' ? 60 : 90;
+  const openingHours = mealType === 'lunch' ? '11:00 AM – 3:00 PM' : '6:00 PM – 11:00 PM';
+  return {
+    id: `meal-${mealType}-${idx}`,
+    name,
+    type: 'restaurant',
+    category: 'food',
+    description: `${mealType === 'lunch' ? 'Lunch' : 'Dinner'} break — grab a bite near your current location in ${cityName}.`,
+    address: cityName,
+    lat: lat + 0.0003,
+    lng: lng + 0.0003,
+    durationMin,
+    distanceFromPrevKm: 0.2,
+    travelTimeMin: 5,
+    rating: 4.1,
+    reviewCount: 0,
+    photos: [],
+    priceLevel: 1,
+    requiresBooking: false,
+    bookingPlatforms: [],
+    tags: ['meal_break', mealType, 'restaurant'],
+    openingHours,
+    isEssential: false,
+  };
+}
+
+/** Insert a lunch (~12:00) and dinner (~18:30) slot into an ordered activity list */
+function injectMeals(
+  activities: Activity[],
+  theme: ItineraryTheme,
+  startMinute: number,
+  center: LatLng,
+  cityName: string,
+  dietary: string[] | undefined,
+  commute: UserPreferences['commuteTypes'],
+): Activity[] {
+  // Foodie = already all food; nightlife starts at 19:00 so no lunch/dinner slot needed
+  if (theme === 'foodie' || theme === 'adventure_nightlife') return activities;
+
+  const LUNCH_MIN = 12 * 60;
+  const DINNER_MIN = 18 * 60 + 30;
+
+  const result: Activity[] = [];
+  let clock = startMinute;
+  let lunchDone = false;
+  let dinnerDone = false;
+  let mealIdx = 0;
+  let lastLat = center.lat;
+  let lastLng = center.lng;
+
+  for (const act of activities) {
+    clock += estimateTravelMin(act.distanceFromPrevKm || 0, commute);
+    if (!lunchDone && clock >= LUNCH_MIN) {
+      result.push(buildMealSlot('lunch', lastLat, lastLng, cityName, dietary, mealIdx++));
+      clock += 60;
+      lunchDone = true;
+    }
+    if (!dinnerDone && clock >= DINNER_MIN) {
+      result.push(buildMealSlot('dinner', lastLat, lastLng, cityName, dietary, mealIdx++));
+      clock += 90;
+      dinnerDone = true;
+    }
+    result.push(act);
+    clock += act.durationMin;
+    lastLat = act.lat;
+    lastLng = act.lng;
+  }
+  return result;
+}
+
 const THEMES: ItineraryTheme[] = [
-  'classic_tourist', 'culture_art', 'foodie', 'local_life', 'adventure_nightlife',
+  'classic_tourist', 'culture_art', 'foodie', 'local_life', 'adventure_nightlife', 'fun_experiences',
 ];
 
 // ─── Theme Filtering ──────────────────────────────────────────────────────────
@@ -122,6 +207,7 @@ const THEME_CATEGORIES: Record<ItineraryTheme, string[]> = {
   foodie: ['food'],
   local_life: ['local_life', 'outdoor'],
   adventure_nightlife: ['nightlife'],
+  fun_experiences: ['entertainment', 'tourist'],
 };
 
 // Secondary activity types that also fit each theme
@@ -131,6 +217,7 @@ const THEME_TYPES: Record<ItineraryTheme, string[]> = {
   foodie: ['restaurant', 'cafe', 'attraction'], // 'attraction' covers food markets
   local_life: ['park', 'shopping', 'cafe', 'attraction'],
   adventure_nightlife: ['bar', 'nightclub', 'entertainment', 'attraction'],
+  fun_experiences: ['entertainment', 'attraction', 'park'],
 };
 
 /**
@@ -206,6 +293,16 @@ const THEME_GENERIC: Record<ItineraryTheme, ActivityTemplate[]> = {
     { name: 'Comedy & Improv Show', type: 'entertainment', category: 'nightlife', durationMin: 120, priceLevel: 2, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.viator], tags: ['comedy', 'entertainment', 'evening show'], openingHours: 'Evening shows 7:00 PM' },
     { name: 'Night Street Food Tour', type: 'attraction', category: 'food', durationMin: 120, priceLevel: 2, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.klook, BOOKING_PLATFORMS.viator], tags: ['night market', 'street food', 'guided'], openingHours: '6:00 PM – 10:00 PM' },
     { name: 'Karaoke & Drinks Night', type: 'entertainment', category: 'nightlife', durationMin: 120, priceLevel: 1, requiresBooking: false, bookingPlatforms: [], tags: ['karaoke', 'fun night out', 'group activity'], openingHours: '7:00 PM – 2:00 AM' },
+  ],
+  fun_experiences: [
+    { name: 'Immersive Digital Art Exhibition', type: 'entertainment', category: 'entertainment', durationMin: 120, priceLevel: 3, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.klook, BOOKING_PLATFORMS.viator], tags: ['digital art', 'immersive', 'interactive', 'teamlab', 'unique'], openingHours: '10:00 AM – 9:00 PM' },
+    { name: 'Observation Deck & Sky View', type: 'attraction', category: 'tourist', durationMin: 90, priceLevel: 2, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.klook, BOOKING_PLATFORMS.getyourguide], tags: ['views', 'skyline', 'photography', 'rooftop', 'observation deck'], openingHours: '10:00 AM – 10:30 PM' },
+    { name: 'Escape Room Adventure', type: 'entertainment', category: 'entertainment', durationMin: 90, priceLevel: 2, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.klook], tags: ['escape room', 'puzzle', 'group activity', 'adventure'], openingHours: '10:00 AM – 10:00 PM' },
+    { name: 'Indoor Go-Kart Racing', type: 'entertainment', category: 'entertainment', durationMin: 90, priceLevel: 3, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.klook], tags: ['go-kart', 'racing', 'adrenaline', 'fun'], openingHours: '10:00 AM – 9:00 PM' },
+    { name: 'VR & Interactive Experience Centre', type: 'entertainment', category: 'entertainment', durationMin: 90, priceLevel: 2, requiresBooking: false, bookingPlatforms: [BOOKING_PLATFORMS.klook], tags: ['VR', 'virtual reality', 'interactive', 'tech', 'gaming'], openingHours: '10:00 AM – 9:00 PM' },
+    { name: 'Amusement Park / Theme Park', type: 'park', category: 'entertainment', durationMin: 240, priceLevel: 3, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.klook, BOOKING_PLATFORMS.viator], tags: ['theme park', 'rides', 'thrill', 'family fun', 'amusement'], openingHours: '9:00 AM – 9:00 PM' },
+    { name: 'Arcade & Game Center', type: 'entertainment', category: 'entertainment', durationMin: 90, priceLevel: 1, requiresBooking: false, bookingPlatforms: [], tags: ['arcade', 'games', 'fun', 'casual', 'gaming'], openingHours: '11:00 AM – 11:00 PM' },
+    { name: 'Unique City Experience Tour', type: 'attraction', category: 'entertainment', durationMin: 120, priceLevel: 2, requiresBooking: true, bookingPlatforms: [BOOKING_PLATFORMS.viator, BOOKING_PLATFORMS.klook], tags: ['unique', 'local experience', 'guided', 'adventure', 'city'], openingHours: '9:00 AM – 6:00 PM' },
   ],
 };
 
@@ -307,7 +404,9 @@ export async function generateItineraryOptionsAsync(
       }
 
       const startTime = theme === 'adventure_nightlife' ? '19:00' : '09:00';
-      const scheduled = scheduleTimes(optimised, startTime, prefs.commuteTypes ?? ['walking']);
+      const startMinute = theme === 'adventure_nightlife' ? 19 * 60 : 9 * 60;
+      const withMeals = injectMeals(optimised, theme, startMinute, center, cityName, prefs.dietaryRestrictions, prefs.commuteTypes ?? ['walking']);
+      const scheduled = scheduleTimes(withMeals, startTime, prefs.commuteTypes ?? ['walking']);
       const totalDistance = scheduled.reduce((s, a) => s + (a.distanceFromPrevKm || 0), 0);
       const totalDuration = scheduled.reduce((s, a) => s + a.durationMin + (a.travelTimeMin || 0), 0);
 
@@ -364,7 +463,9 @@ export function generateItineraryOptions(
     }
 
     const startTime = theme === 'adventure_nightlife' ? '19:00' : '09:00';
-    const scheduled = scheduleTimes(optimised, startTime, prefs.commuteTypes ?? ['walking']);
+    const startMinute = theme === 'adventure_nightlife' ? 19 * 60 : 9 * 60;
+    const withMeals = injectMeals(optimised, theme, startMinute, center, cityName, prefs.dietaryRestrictions, prefs.commuteTypes ?? ['walking']);
+    const scheduled = scheduleTimes(withMeals, startTime, prefs.commuteTypes ?? ['walking']);
     const totalDistance = scheduled.reduce((s, a) => s + (a.distanceFromPrevKm || 0), 0);
     const totalDuration = scheduled.reduce((s, a) => s + a.durationMin + (a.travelTimeMin || 0), 0);
 

@@ -127,7 +127,8 @@ export type ItineraryTheme =
   | 'culture_art'
   | 'foodie'
   | 'local_life'
-  | 'adventure_nightlife';
+  | 'adventure_nightlife'
+  | 'fun_experiences';
 
 export interface Activity {
   id: string;
@@ -178,6 +179,7 @@ export type ActivityCategory =
   | 'shopping'
   | 'outdoor'
   | 'local_life'
+  | 'entertainment'
   | 'essential';
 
 export interface BookingPlatform {
