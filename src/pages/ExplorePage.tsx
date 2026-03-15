@@ -409,8 +409,8 @@ export default function ExplorePage() {
         })}
       </div>
 
-      {/* Map */}
-      <div className="px-5 mb-3 relative">
+      {/* Map — sticky so it stays visible while the results list scrolls */}
+      <div className="sticky top-0 z-20 bg-[#0D1329] px-5 pb-3 relative">
         {mapCenter ? (
           <TripMap
             accommodation={centerPin}
