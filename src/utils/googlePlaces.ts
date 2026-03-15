@@ -194,8 +194,7 @@ export async function searchNearbyPlaces(
 }
 
 // ─── Streaming Nearby Search (Explore page — up to 3 pages / ~60 results) ────
-// Calls onBatch immediately for each page so the UI updates progressively.
-// The rating filter is intentionally absent — users should see everything.
+// Kept for backward compat but Explore now uses streamCitywidePlaces.
 
 export function streamNearbyPlaces(
   center: LatLng,
@@ -222,9 +221,7 @@ export function streamNearbyPlaces(
         .filter((a): a is Activity => a !== null);
       onBatch(batch);
     }
-
     if (pagination?.hasNextPage && totalFetched < 60) {
-      // Google requires ~2 s between page requests
       setTimeout(() => pagination.nextPage(), 2200);
     } else {
       onComplete();
@@ -232,6 +229,56 @@ export function streamNearbyPlaces(
   };
 
   service.nearbySearch({ location: center, radius, type: type as any }, handle);
+}
+
+// ─── City-wide Grid Search (Explore page) ────────────────────────────────────
+// Runs 5 parallel searches across a cross-shaped grid (center + N/S/E/W)
+// so every part of the city is covered, not just the famous downtown cluster.
+// Each zone uses a 10 km radius; zones are offset ~7 km so they overlap.
+// Total: up to 5 × 20 = 100 unique results, arriving in parallel.
+
+export function streamCitywidePlaces(
+  center: LatLng,
+  type: string,
+  onBatch: (places: Activity[]) => void,
+  onComplete: () => void,
+): void {
+  if (!window.google?.maps?.places) { onComplete(); return; }
+
+  // Offsets: ~7 km in lat/lng degrees (0.063° lat ≈ 7 km; 0.09° lng ≈ 7 km at mid-lat)
+  const DL = 0.063;
+  const DG = 0.09;
+  const zones: LatLng[] = [
+    center,
+    { lat: center.lat + DL, lng: center.lng },         // North
+    { lat: center.lat - DL, lng: center.lng },         // South
+    { lat: center.lat,       lng: center.lng + DG },   // East
+    { lat: center.lat,       lng: center.lng - DG },   // West
+  ];
+
+  const seen = new Set<string>();
+  let completedZones = 0;
+
+  zones.forEach((zoneCenter) => {
+    const service = new window.google.maps.places.PlacesService(document.createElement('div'));
+    service.nearbySearch(
+      { location: zoneCenter, radius: 10000, type: type as any },
+      (res, status) => {
+        if (status === window.google.maps.places.PlacesServiceStatus.OK && res) {
+          const fresh = res
+            .filter((p) => p.geometry?.location && p.name && !seen.has(p.place_id ?? ''))
+            .map((p) => {
+              seen.add(p.place_id ?? `${p.name}_${Math.random()}`);
+              return placeToActivity(p, 0, {} as UserPreferences);
+            })
+            .filter((a): a is Activity => a !== null);
+          if (fresh.length > 0) onBatch(fresh);
+        }
+        completedZones++;
+        if (completedZones === zones.length) onComplete();
+      },
+    );
+  });
 }
 
 // ─── Fetch Place Details ──────────────────────────────────────────────────────

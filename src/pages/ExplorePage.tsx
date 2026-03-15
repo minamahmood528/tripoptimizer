@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Compass, Loader2, RefreshCw, Navigation, Search, X, Star, BookmarkPlus, MapPin } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { streamNearbyPlaces } from '../utils/googlePlaces';
+import { streamCitywidePlaces } from '../utils/googlePlaces';
 import { getCategoryIcon, getPriceLevelLabel } from '../utils/itinerary';
 import TripMap from '../components/maps/TripMap';
 import ActivityCard from '../components/cards/ActivityCard';
@@ -22,8 +22,6 @@ const FILTER_TYPES = [
   { label: 'Spas', value: 'spa', emoji: '💆' },
 ];
 
-// 15 km radius — covers a full city + surroundings
-const SEARCH_RADIUS = 15000;
 // Single violet colour for all explore markers
 const EXPLORE_MARKER_COLOR = '#7C3AED';
 
@@ -112,43 +110,33 @@ export default function ExplorePage() {
     autocompleteRef.current = ac;
   }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── 3. Progressive search — streams up to 3 pages (~60 results) ──────────
+  // ── 3. City-wide grid search — 5 parallel zones, ~100 unique results ────────
   const doSearch = useCallback((center: LatLng, type: string) => {
     if (!window.google?.maps?.places) return;
-    searchAbortRef.current = true; // cancel any in-flight stream
+    searchAbortRef.current = true; // signal any in-flight stream to stop
     setIsSearching(true);
     setIsLoadingMore(false);
     setShowSearchHere(false);
     setPlaces([]);
     setPopupActivity(null);
 
-    const token = {}; // unique object per call — used to detect stale callbacks
     searchAbortRef.current = false;
-    const myToken = token;
 
-    let firstBatch = true;
-    const seen = new Set<string>();
-
-    streamNearbyPlaces(
-      center, type, SEARCH_RADIUS,
+    streamCitywidePlaces(
+      center, type,
       (batch) => {
-        if (searchAbortRef.current) return; // stale stream, ignore
-        const fresh = batch.filter((p) => !seen.has(p.id));
-        fresh.forEach((p) => seen.add(p.id));
-        if (fresh.length === 0) return;
-
+        if (searchAbortRef.current) return;
         setPlaces((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const fresh = batch.filter((p) => !existingIds.has(p.id));
+          if (fresh.length === 0) return prev;
           const combined = [...prev, ...fresh];
           combined.sort((a, b) => b.rating - a.rating);
           return combined;
         });
-
-        if (firstBatch) {
-          firstBatch = false;
-          setIsSearching(false);
-          setIsLoadingMore(true);
-        }
-        void myToken; // keep reference alive
+        // After first batch arrives, switch from full-screen spinner to inline indicator
+        setIsSearching(false);
+        setIsLoadingMore(true);
       },
       () => {
         if (searchAbortRef.current) return;
