@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Compass, Loader2, RefreshCw, Navigation } from 'lucide-react';
+import { Compass, Loader2, RefreshCw, Navigation, Search, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { searchNearbyPlaces } from '../utils/googlePlaces';
 import TripMap from '../components/maps/TripMap';
@@ -21,6 +21,9 @@ const FILTER_TYPES = [
   { label: 'Spas', value: 'spa', emoji: '💆' },
 ];
 
+// 15 km radius — covers a full city + surroundings
+const SEARCH_RADIUS = 15000;
+
 export default function ExplorePage() {
   const { user } = useAuth();
   const apiKey = user?.preferences?.googleMapsApiKey ?? '';
@@ -31,19 +34,26 @@ export default function ExplorePage() {
   const [isSearching, setIsSearching] = useState(false);
   const [mapCenter, setMapCenter] = useState<LatLng | null>(null);
   const [searchCenter, setSearchCenter] = useState<LatLng | null>(null);
+  const [locationLabel, setLocationLabel] = useState<string>('');
   const [geoStatus, setGeoStatus] = useState<'loading' | 'ok' | 'denied' | 'unsupported'>('loading');
   const [showSearchHere, setShowSearchHere] = useState(false);
   const [pendingCenter, setPendingCenter] = useState<LatLng | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const initialSearchDone = useRef(false);
 
+  // Search bar state
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
   // ── 1. Get user's current location on mount ───────────────────────────────
   useEffect(() => {
     if (!navigator.geolocation) {
       setGeoStatus('unsupported');
-      const fallback = { lat: 48.8566, lng: 2.3522 }; // Paris fallback
+      const fallback = { lat: 48.8566, lng: 2.3522 };
       setMapCenter(fallback);
       setSearchCenter(fallback);
+      setLocationLabel('Paris');
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -52,23 +62,64 @@ export default function ExplorePage() {
         setMapCenter(loc);
         setSearchCenter(loc);
         setGeoStatus('ok');
+        // Reverse geocode to get city name
+        if (window.google?.maps) {
+          const geocoder = new window.google.maps.Geocoder();
+          geocoder.geocode({ location: loc }, (results, status) => {
+            if (status === 'OK' && results?.[0]) {
+              const cityComp = results[0].address_components?.find((c) =>
+                c.types.includes('locality') || c.types.includes('administrative_area_level_1'),
+              );
+              if (cityComp) setLocationLabel(cityComp.long_name);
+            }
+          });
+        }
       },
       () => {
         setGeoStatus('denied');
         const fallback = { lat: 48.8566, lng: 2.3522 };
         setMapCenter(fallback);
         setSearchCenter(fallback);
+        setLocationLabel('Paris');
       },
       { timeout: 8000, enableHighAccuracy: false },
     );
   }, []);
 
-  // ── 2. Search when location + filter are ready ────────────────────────────
+  // ── 2. Init Google Places Autocomplete on the search input ────────────────
+  useEffect(() => {
+    if (!isLoaded || !searchInputRef.current || autocompleteRef.current) return;
+
+    const ac = new window.google.maps.places.Autocomplete(searchInputRef.current, {
+      types: ['geocode', 'establishment'],
+      fields: ['geometry', 'name', 'formatted_address'],
+    });
+
+    ac.addListener('place_changed', () => {
+      const place = ac.getPlace();
+      if (!place.geometry?.location) return;
+      const loc: LatLng = {
+        lat: place.geometry.location.lat(),
+        lng: place.geometry.location.lng(),
+      };
+      const label = place.name ?? place.formatted_address ?? '';
+      setLocationLabel(label);
+      setSearchQuery(label);
+      setMapCenter(loc);
+      setSearchCenter(loc);
+      setShowSearchHere(false);
+      doSearch(loc, filter);
+    });
+
+    autocompleteRef.current = ac;
+  }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── 3. Search when location + filter are ready ────────────────────────────
   const doSearch = useCallback((center: LatLng, type: string) => {
     if (!window.google?.maps?.places) return;
     setIsSearching(true);
     setShowSearchHere(false);
-    searchNearbyPlaces(center, [type], 2500)
+    searchNearbyPlaces(center, [type], SEARCH_RADIUS)
       .then((results) => setPlaces(results))
       .catch(() => setPlaces([]))
       .finally(() => setIsSearching(false));
@@ -87,11 +138,11 @@ export default function ExplorePage() {
     doSearch(searchCenter, filter);
   }, [filter]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── 3. Map idle → offer "Search this area" ───────────────────────────────
+  // ── 4. Map idle → offer "Search this area" ───────────────────────────────
   const handleMapIdle = useCallback((center: LatLng) => {
     if (!searchCenter) return;
     const dist = Math.abs(center.lat - searchCenter.lat) + Math.abs(center.lng - searchCenter.lng);
-    if (dist > 0.005) {
+    if (dist > 0.01) {
       setPendingCenter(center);
       setShowSearchHere(true);
     }
@@ -101,6 +152,7 @@ export default function ExplorePage() {
     if (!pendingCenter) return;
     setSearchCenter(pendingCenter);
     doSearch(pendingCenter, filter);
+    setShowSearchHere(false);
   };
 
   const handleRecenter = () => {
@@ -110,6 +162,7 @@ export default function ExplorePage() {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setMapCenter(loc);
         setSearchCenter(loc);
+        setSearchQuery('');
         doSearch(loc, filter);
       },
       () => {},
@@ -117,10 +170,15 @@ export default function ExplorePage() {
     );
   };
 
-  // Fake "accommodation" for TripMap (just the center pin)
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    if (searchInputRef.current) searchInputRef.current.value = '';
+  };
+
+  // Center pin for TripMap
   const centerPin: Accommodation = {
     id: 'explore_center',
-    name: geoStatus === 'ok' ? 'Your Location' : 'City Center',
+    name: locationLabel || (geoStatus === 'ok' ? 'Your Location' : 'City Center'),
     address: '',
     lat: searchCenter?.lat ?? 48.8566,
     lng: searchCenter?.lng ?? 2.3522,
@@ -131,25 +189,48 @@ export default function ExplorePage() {
 
   const mapsReady = isLoaded && !!searchCenter;
 
+  const subtitleText = () => {
+    if (geoStatus === 'loading') return '📡 Getting your location…';
+    if (locationLabel) return `📍 Exploring ${locationLabel}`;
+    if (geoStatus === 'denied') return '⚠️ Location denied — showing Paris';
+    if (geoStatus === 'unsupported') return '⚠️ GPS unavailable — showing Paris';
+    return '📍 Showing places near you';
+  };
+
   return (
     <div className="min-h-screen bg-gradient-hero pb-28 safe-top">
 
       {/* Header */}
       <div className="px-5 pt-12 pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-3">
           <div>
             <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Explore</h1>
-            <p className="text-slate-500 text-sm font-medium mt-0.5">
-              {geoStatus === 'loading' && '📡 Getting your location…'}
-              {geoStatus === 'ok' && '📍 Showing places near you'}
-              {geoStatus === 'denied' && '⚠️ Location denied — showing Paris'}
-              {geoStatus === 'unsupported' && '⚠️ GPS unavailable — showing Paris'}
-            </p>
+            <p className="text-slate-500 text-sm font-medium mt-0.5">{subtitleText()}</p>
           </div>
           {geoStatus === 'ok' && (
             <button onClick={handleRecenter}
-              className="w-10 h-10 rounded-2xl glass flex items-center justify-center text-violet-400 hover:text-violet-300 transition-all">
+              className="w-10 h-10 rounded-2xl glass flex items-center justify-center text-violet-400 hover:text-violet-300 transition-all"
+              title="Back to my location">
               <Navigation size={18} />
+            </button>
+          )}
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search any city, place, restaurant…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-9 py-3 rounded-2xl glass border border-white/10 text-white placeholder-white/40 text-sm font-medium focus:outline-none focus:border-violet-500/50 transition-all"
+          />
+          {searchQuery && (
+            <button onClick={handleClearSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors">
+              <X size={15} />
             </button>
           )}
         </div>
@@ -175,7 +256,7 @@ export default function ExplorePage() {
         {mapCenter ? (
           <TripMap
             accommodation={centerPin}
-            activities={places.slice(0, 15)}
+            activities={places.slice(0, 20)}
             height="260px"
             showRoute={false}
             onMapIdle={handleMapIdle}
@@ -211,6 +292,7 @@ export default function ExplorePage() {
         <div className="flex items-center justify-between mb-3">
           <p className="text-slate-500 text-sm font-medium">
             {isSearching ? 'Finding places…' : `${places.length} places found`}
+            {!isSearching && locationLabel ? ` in ${locationLabel}` : ''}
           </p>
           {isSearching && <Loader2 size={16} className="text-violet-400 animate-spin" />}
         </div>
@@ -243,7 +325,7 @@ export default function ExplorePage() {
         {mapsReady && !isSearching && places.length === 0 && (
           <div className="glass rounded-3xl p-8 text-center">
             <Compass size={36} className="text-white/20 mx-auto mb-3" />
-            <p className="text-white/50">No places found. Try a different filter or pan the map and tap "Search this area".</p>
+            <p className="text-white/50">No places found. Try a different filter or search for a new location above.</p>
           </div>
         )}
 
