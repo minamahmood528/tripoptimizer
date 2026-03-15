@@ -19,7 +19,7 @@ export default function TripDetailPage() {
   if (!trip) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-hero pb-28 safe-top">
+    <div className="min-h-screen bg-gradient-hero pb-28 safe-top max-w-lg mx-auto">
       {/* Header */}
       <div className="px-5 pt-12 pb-6">
         <div className="flex items-center gap-3 mb-4">

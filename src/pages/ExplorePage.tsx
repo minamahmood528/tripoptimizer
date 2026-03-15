@@ -349,7 +349,7 @@ export default function ExplorePage() {
     : [];
 
   return (
-    <div className="min-h-screen bg-gradient-hero pb-28 safe-top">
+    <div className="min-h-screen bg-gradient-hero pb-28 safe-top max-w-lg mx-auto">
 
       {/* Header */}
       <div className="px-5 pt-12 pb-3">
