@@ -119,12 +119,14 @@ export default function TripMap({ accommodation, activities, height = '400px', s
         position,
         map,
         title: act.name,
-        label: {
-          text: String(i + 1),
-          color: '#fff',
-          fontSize: '12px',
-          fontWeight: '700',
-        },
+        ...(uniformMarkerColor ? {} : {
+          label: {
+            text: String(i + 1),
+            color: '#fff',
+            fontSize: '12px',
+            fontWeight: '700',
+          },
+        }),
         icon: {
           path: window.google.maps.SymbolPath.CIRCLE,
           scale: 16,
