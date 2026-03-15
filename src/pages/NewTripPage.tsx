@@ -431,12 +431,29 @@ function CitySearchBlock({
   const [accLoading, setAccLoading] = useState(false);
   const [showCityDrop, setShowCityDrop] = useState(false);
   const [showAccDrop, setShowAccDrop] = useState(false);
+  const [cityDropUp, setCityDropUp] = useState(false);
+  const [accDropUp, setAccDropUp] = useState(false);
 
   const acSvc = useRef<google.maps.places.AutocompleteService | null>(null);
   const plSvc = useRef<google.maps.places.PlacesService | null>(null);
   const cityTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const accTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
+  const cityInputRef = useRef<HTMLDivElement>(null);
+  const accInputRef = useRef<HTMLDivElement>(null);
+
+  const measureAndShow = (
+    ref: React.RefObject<HTMLDivElement | null>,
+    setDropUp: (v: boolean) => void,
+    setShow: (v: boolean) => void,
+  ) => {
+    if (ref.current) {
+      const rect = ref.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom - 80; // 80 = bottom nav
+      setDropUp(spaceBelow < 220);
+    }
+    setShow(true);
+  };
 
   useEffect(() => {
     if (mapsLoaded && window.google?.maps?.places && !acSvc.current) {
@@ -478,7 +495,7 @@ function CitySearchBlock({
             predictions?.length
           ) {
             setCitySuggestions(predictions);
-            setShowCityDrop(true);
+            measureAndShow(cityInputRef, setCityDropUp, setShowCityDrop);
           } else {
             setCitySuggestions([]);
             setShowCityDrop(false);
@@ -561,7 +578,7 @@ function CitySearchBlock({
             predictions?.length
           ) {
             setAccSuggestions(predictions);
-            setShowAccDrop(true);
+            measureAndShow(accInputRef, setAccDropUp, setShowAccDrop);
           } else {
             setAccSuggestions([]);
             setShowAccDrop(false);
@@ -640,7 +657,7 @@ function CitySearchBlock({
       </div>
 
       {/* ── City Search ── */}
-      <div className="relative">
+      <div className="relative" ref={cityInputRef}>
         <div className="relative">
           <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-violet-400 pointer-events-none z-10" />
           <input
@@ -665,8 +682,11 @@ function CitySearchBlock({
         {/* City Dropdown */}
         {showCityDrop && citySuggestions.length > 0 && (
           <div
-            className="absolute top-full mt-1.5 left-0 right-0 z-50 rounded-2xl overflow-hidden border border-white/10 shadow-2xl"
-            style={{ background: 'rgba(13,19,41,0.97)', backdropFilter: 'blur(20px)' }}
+            className={clsx(
+              'absolute left-0 right-0 z-[200] rounded-2xl overflow-y-auto border border-white/10 shadow-2xl',
+              cityDropUp ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
+            )}
+            style={{ background: 'rgba(13,19,41,0.97)', backdropFilter: 'blur(20px)', maxHeight: '224px' }}
           >
             {citySuggestions.slice(0, 6).map(pred => (
               <button
@@ -728,7 +748,7 @@ function CitySearchBlock({
       </label>
 
       {/* ── Accommodation Search ── */}
-      {!block.isDayTrip && <div className="relative">
+      {!block.isDayTrip && <div className="relative" ref={accInputRef}>
         <div className="relative">
           <Hotel
             size={14}
@@ -765,8 +785,11 @@ function CitySearchBlock({
         {/* Accommodation Dropdown */}
         {showAccDrop && accSuggestions.length > 0 && (
           <div
-            className="absolute top-full mt-1.5 left-0 right-0 z-50 rounded-2xl overflow-hidden border border-white/10 shadow-2xl"
-            style={{ background: 'rgba(13,19,41,0.97)', backdropFilter: 'blur(20px)' }}
+            className={clsx(
+              'absolute left-0 right-0 z-[200] rounded-2xl overflow-y-auto border border-white/10 shadow-2xl',
+              accDropUp ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
+            )}
+            style={{ background: 'rgba(13,19,41,0.97)', backdropFilter: 'blur(20px)', maxHeight: '224px' }}
           >
             {accSuggestions.slice(0, 6).map(pred => (
               <button
