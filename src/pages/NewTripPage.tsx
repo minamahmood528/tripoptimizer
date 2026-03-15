@@ -32,6 +32,7 @@ interface CityBlock {
   // Dates
   arrivalDate: string;
   departureDate: string;
+  isDayTrip: boolean;
 }
 
 function makeCityBlock(id: string, afterDate?: string): CityBlock {
@@ -44,6 +45,7 @@ function makeCityBlock(id: string, afterDate?: string): CityBlock {
     accName: '', accAddress: '', accLat: null, accLng: null,
     arrivalDate: format(base, 'yyyy-MM-dd'),
     departureDate: format(addDays(base, 3), 'yyyy-MM-dd'),
+    isDayTrip: false,
   };
 }
 
@@ -611,9 +613,11 @@ function CitySearchBlock({
   };
 
   const today = format(new Date(), 'yyyy-MM-dd');
-  const minDep = block.arrivalDate
-    ? format(addDays(parseISO(block.arrivalDate), 1), 'yyyy-MM-dd')
-    : format(addDays(new Date(), 1), 'yyyy-MM-dd');
+  const minDep = block.isDayTrip
+    ? (block.arrivalDate || today)
+    : block.arrivalDate
+      ? format(addDays(parseISO(block.arrivalDate), 1), 'yyyy-MM-dd')
+      : format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
   return (
     <div ref={containerRef} className="glass rounded-3xl p-4 border border-white/10 space-y-3">
@@ -687,8 +691,44 @@ function CitySearchBlock({
         )}
       </div>
 
+      {/* ── Day Trip Toggle ── */}
+      <label className="flex items-center gap-2.5 cursor-pointer select-none group">
+        <div
+          onClick={() => {
+            const toggled = !block.isDayTrip;
+            const updates: Partial<CityBlock> = { isDayTrip: toggled };
+            if (toggled) {
+              // Sync departure = arrival for day trips
+              updates.departureDate = block.arrivalDate;
+              // Clear accommodation
+              updates.accInput = '';
+              updates.accConfirmed = false;
+              updates.accName = '';
+              updates.accAddress = '';
+              updates.accLat = null;
+              updates.accLng = null;
+            } else {
+              // Restore departure to arrival + 1
+              updates.departureDate = format(addDays(parseISO(block.arrivalDate), 1), 'yyyy-MM-dd');
+            }
+            onUpdate(updates);
+          }}
+          className={clsx(
+            'w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all shrink-0',
+            block.isDayTrip
+              ? 'bg-violet-500 border-violet-500'
+              : 'border-white/25 bg-white/5 group-hover:border-white/40',
+          )}
+        >
+          {block.isDayTrip && <Check size={11} className="text-white" />}
+        </div>
+        <span className="text-white/60 text-sm font-medium group-hover:text-white/80 transition-colors">
+          Day trip <span className="text-white/30 font-normal">(no overnight stay)</span>
+        </span>
+      </label>
+
       {/* ── Accommodation Search ── */}
-      <div className="relative">
+      {!block.isDayTrip && <div className="relative">
         <div className="relative">
           <Hotel
             size={14}
@@ -749,7 +789,7 @@ function CitySearchBlock({
             ))}
           </div>
         )}
-      </div>
+      </div>}
 
       {/* ── Dates ── */}
       <div className="grid grid-cols-2 gap-2 pt-1">
@@ -762,9 +802,13 @@ function CitySearchBlock({
             onChange={e => {
               const val = e.target.value;
               const updates: Partial<CityBlock> = { arrivalDate: val };
-              // Auto-bump departure if it would be on/before new arrival
-              if (block.departureDate && block.departureDate <= val) {
+              // Auto-bump departure if it would fall before new arrival (skip for day trips)
+              if (!block.isDayTrip && block.departureDate && block.departureDate <= val) {
                 updates.departureDate = format(addDays(parseISO(val), 1), 'yyyy-MM-dd');
+              }
+              // For day trips keep departure in sync with arrival
+              if (block.isDayTrip) {
+                updates.departureDate = val;
               }
               onUpdate(updates);
             }}
