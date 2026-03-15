@@ -24,7 +24,6 @@ const FILTER_TYPES = [
   { label: 'Spas',        emoji: '💆', types: ['spa', 'beauty_salon', 'hair_care'] },
 ];
 
-// Dietary filter is only relevant for food-related categories
 const FOOD_CATEGORIES = new Set(['Food', 'Cafés']);
 
 const INTEREST_TO_FILTER: Record<string, string> = {
@@ -53,7 +52,6 @@ const SORT_OPTIONS: { value: SortOption; label: string; emoji: string }[] = [
 ];
 
 const PRICE_OPTIONS = [
-  { value: -1, label: 'All' },
   { value: 0,  label: 'Free 🆓' },
   { value: 1,  label: '$' },
   { value: 2,  label: '$$' },
@@ -97,13 +95,12 @@ export default function ExplorePage() {
   // ── Category filter ───────────────────────────────────────────────────────
   const [filter, setFilter] = useState(getInitialFilter());
 
-  // ── Sort & Filter panel ───────────────────────────────────────────────────
+  // ── Sort & Filter panel state — all multi-select except sort + rating ─────
   const [sortBy, setSortBy] = useState<SortOption>('top_rated');
-  const [priceFilter, setPriceFilter] = useState<number>(-1);
+  const [priceFilters, setPriceFilters] = useState<number[]>([]);       // empty = all
   const [minRating, setMinRating] = useState<number>(0);
-  const [dietaryFilter, setDietaryFilter] = useState<DietaryRestriction | null>(
-    // Pre-select profile dietary only if starting on a food category
-    FOOD_CATEGORIES.has(getInitialFilter()) && profileDietary.length > 0 ? profileDietary[0] : null,
+  const [dietaryFilters, setDietaryFilters] = useState<DietaryRestriction[]>(
+    FOOD_CATEGORIES.has(getInitialFilter()) ? profileDietary : [],
   );
   const [showSortFilter, setShowSortFilter] = useState(false);
 
@@ -127,18 +124,28 @@ export default function ExplorePage() {
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const getDietaryKeyword = (diet: DietaryRestriction | null): string | undefined =>
-    diet ? DIETARY_KEYWORDS[diet] : undefined;
+  // Multi-select toggle helpers
+  const toggleDietary = (val: DietaryRestriction) =>
+    setDietaryFilters((prev) => prev.includes(val) ? prev.filter((d) => d !== val) : [...prev, val]);
 
-  // Clear dietary filter when switching away from food categories
+  const togglePrice = (val: number) =>
+    setPriceFilters((prev) => prev.includes(val) ? prev.filter((p) => p !== val) : [...prev, val]);
+
+  // Build keyword string from multiple dietary selections
+  const buildDietaryKeyword = (diets: DietaryRestriction[]): string | undefined => {
+    const keywords = diets.map((d) => DIETARY_KEYWORDS[d]).filter(Boolean) as string[];
+    return keywords.length > 0 ? keywords.join(' ') : undefined;
+  };
+
+  // Clear dietary when leaving food categories
   useEffect(() => {
-    if (!FOOD_CATEGORIES.has(filter)) setDietaryFilter(null);
+    if (!FOOD_CATEGORIES.has(filter)) setDietaryFilters([]);
   }, [filter]);
 
   // ── Derived: filtered + sorted places ─────────────────────────────────────
   const filteredSortedPlaces = useMemo(() => {
     let result = [...places];
-    if (priceFilter >= 0) result = result.filter((p) => p.priceLevel === priceFilter);
+    if (priceFilters.length > 0) result = result.filter((p) => priceFilters.includes(p.priceLevel));
     if (minRating > 0) result = result.filter((p) => p.rating >= minRating);
     switch (sortBy) {
       case 'top_rated':     result.sort((a, b) => b.rating - a.rating); break;
@@ -152,14 +159,21 @@ export default function ExplorePage() {
         break;
     }
     return result;
-  }, [places, sortBy, priceFilter, minRating, searchCenter]);
+  }, [places, sortBy, priceFilters, minRating, searchCenter]);
 
   const isFoodCategory = FOOD_CATEGORIES.has(filter);
   const activeFilterCount =
-    (priceFilter >= 0 ? 1 : 0) +
+    (priceFilters.length > 0 ? 1 : 0) +
     (minRating > 0 ? 1 : 0) +
     (sortBy !== 'top_rated' ? 1 : 0) +
-    (isFoodCategory && dietaryFilter ? 1 : 0);
+    (isFoodCategory && dietaryFilters.length > 0 ? 1 : 0);
+
+  const resetAll = () => {
+    setSortBy('top_rated');
+    setPriceFilters([]);
+    setMinRating(0);
+    setDietaryFilters([]);
+  };
 
   // ── 1. Geolocation on mount ───────────────────────────────────────────────
   useEffect(() => {
@@ -211,7 +225,7 @@ export default function ExplorePage() {
       setSearchCenter(loc);
       setShowSearchHere(false);
       setPopupActivity(null);
-      doSearch(loc, getTypes(filter), getDietaryKeyword(dietaryFilter));
+      doSearch(loc, getTypes(filter), buildDietaryKeyword(dietaryFilters));
     });
     autocompleteRef.current = ac;
   }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -255,18 +269,18 @@ export default function ExplorePage() {
     if (!isLoaded || !searchCenter) return;
     if (initialSearchDone.current && searchCenter === mapCenter) return;
     initialSearchDone.current = true;
-    doSearch(searchCenter, getTypes(filter), getDietaryKeyword(dietaryFilter));
+    doSearch(searchCenter, getTypes(filter), buildDietaryKeyword(dietaryFilters));
   }, [isLoaded, searchCenter, filter, doSearch, mapCenter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isLoaded || !searchCenter) return;
-    doSearch(searchCenter, getTypes(filter), getDietaryKeyword(dietaryFilter));
+    doSearch(searchCenter, getTypes(filter), buildDietaryKeyword(dietaryFilters));
   }, [filter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isLoaded || !searchCenter) return;
-    doSearch(searchCenter, getTypes(filter), getDietaryKeyword(dietaryFilter));
-  }, [dietaryFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+    doSearch(searchCenter, getTypes(filter), buildDietaryKeyword(dietaryFilters));
+  }, [dietaryFilters]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 4. Map controls ───────────────────────────────────────────────────────
   const handleMapIdle = useCallback((center: LatLng) => {
@@ -278,7 +292,7 @@ export default function ExplorePage() {
   const handleSearchHere = () => {
     if (!pendingCenter) return;
     setSearchCenter(pendingCenter);
-    doSearch(pendingCenter, getTypes(filter), getDietaryKeyword(dietaryFilter));
+    doSearch(pendingCenter, getTypes(filter), buildDietaryKeyword(dietaryFilters));
     setShowSearchHere(false);
   };
 
@@ -288,7 +302,7 @@ export default function ExplorePage() {
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setMapCenter(loc); setSearchCenter(loc); setSearchQuery('');
-        doSearch(loc, getTypes(filter), getDietaryKeyword(dietaryFilter));
+        doSearch(loc, getTypes(filter), buildDietaryKeyword(dietaryFilters));
       },
       () => {},
       { timeout: 5000 },
@@ -318,9 +332,9 @@ export default function ExplorePage() {
     return '📍 Showing places near you';
   };
 
-  const activeDietaryOption = isFoodCategory
-    ? DIETARY_OPTIONS.find((d) => d.value === dietaryFilter)
-    : null;
+  const activeDietaryOptions = isFoodCategory
+    ? DIETARY_OPTIONS.filter((d) => dietaryFilters.includes(d.value as DietaryRestriction))
+    : [];
 
   return (
     <div className="min-h-screen bg-gradient-hero pb-28 safe-top">
@@ -459,21 +473,29 @@ export default function ExplorePage() {
 
         {/* Status bar */}
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <p className="text-slate-400 text-sm font-medium">
               {isSearching
                 ? 'Finding places…'
                 : `${filteredSortedPlaces.length}${filteredSortedPlaces.length !== places.length ? `/${places.length}` : ''} places${locationLabel ? ` in ${locationLabel}` : ''}`}
               {isLoadingMore && !isSearching && <span className="text-violet-400 ml-1">· loading…</span>}
             </p>
-            {activeDietaryOption && (
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold">
-                {activeDietaryOption.emoji} {activeDietaryOption.label}
-                <button onClick={() => setDietaryFilter(null)} className="ml-0.5 hover:text-amber-200"><X size={10} /></button>
+            {/* Active dietary badges */}
+            {activeDietaryOptions.map((opt) => (
+              <span key={opt.value} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+                {opt.emoji} {opt.label}
+                <button onClick={() => toggleDietary(opt.value as DietaryRestriction)} className="ml-0.5 hover:text-amber-200"><X size={10} /></button>
               </span>
-            )}
+            ))}
+            {/* Active price badges */}
+            {priceFilters.map((p) => (
+              <span key={p} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-semibold">
+                {p === 0 ? 'Free' : '$'.repeat(p)}
+                <button onClick={() => togglePrice(p)} className="ml-0.5 hover:text-emerald-200"><X size={10} /></button>
+              </span>
+            ))}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {(isSearching || isLoadingMore) && <Loader2 size={14} className="text-violet-400 animate-spin" />}
             <button
               onClick={() => setShowSortFilter((v) => !v)}
@@ -499,7 +521,7 @@ export default function ExplorePage() {
         {showSortFilter && (
           <div className="glass rounded-2xl border border-white/10 p-4 mb-4 space-y-4 animate-fade-in">
 
-            {/* Sort */}
+            {/* Sort — single select */}
             <div>
               <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-2">Sort by</p>
               <div className="flex flex-wrap gap-2">
@@ -517,15 +539,27 @@ export default function ExplorePage() {
               </div>
             </div>
 
-            {/* Price */}
+            {/* Price — multi-select */}
             <div>
-              <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-2">Price</p>
+              <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-1">Price
+                <span className="ml-1 text-white/30 normal-case font-normal">· select multiple</span>
+              </p>
               <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setPriceFilters([])}
+                  className={clsx(
+                    'px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all',
+                    priceFilters.length === 0
+                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                      : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white/90',
+                  )}>
+                  All
+                </button>
                 {PRICE_OPTIONS.map((opt) => (
-                  <button key={opt.value} onClick={() => setPriceFilter(opt.value)}
+                  <button key={opt.value} onClick={() => togglePrice(opt.value)}
                     className={clsx(
                       'px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all min-w-[48px] text-center',
-                      priceFilter === opt.value
+                      priceFilters.includes(opt.value)
                         ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
                         : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white/90',
                     )}>
@@ -535,7 +569,7 @@ export default function ExplorePage() {
               </div>
             </div>
 
-            {/* Rating */}
+            {/* Rating — single select (threshold) */}
             <div>
               <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-2">Min Rating</p>
               <div className="flex flex-wrap gap-2">
@@ -554,27 +588,29 @@ export default function ExplorePage() {
               </div>
             </div>
 
-            {/* Dietary restriction — only shown for Food / Cafés */}
+            {/* Dietary — multi-select, food categories only */}
             {isFoodCategory && (
               <div>
-                <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-2">Dietary</p>
+                <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-1">Dietary
+                  <span className="ml-1 text-white/30 normal-case font-normal">· select multiple</span>
+                </p>
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => setDietaryFilter(null)}
+                    onClick={() => setDietaryFilters([])}
                     className={clsx(
                       'px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all',
-                      !dietaryFilter
+                      dietaryFilters.length === 0
                         ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
                         : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white/90',
                     )}>
                     All
                   </button>
                   {DIETARY_OPTIONS.filter((d) => d.value !== 'none').map((opt) => {
-                    const isActive = dietaryFilter === opt.value;
+                    const isActive = dietaryFilters.includes(opt.value as DietaryRestriction);
                     const isProfilePref = profileDietary.includes(opt.value as DietaryRestriction);
                     return (
                       <button key={opt.value}
-                        onClick={() => setDietaryFilter(isActive ? null : opt.value as DietaryRestriction)}
+                        onClick={() => toggleDietary(opt.value as DietaryRestriction)}
                         className={clsx(
                           'flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all',
                           isActive
@@ -597,9 +633,8 @@ export default function ExplorePage() {
 
             {/* Reset */}
             {activeFilterCount > 0 && (
-              <button
-                onClick={() => { setSortBy('top_rated'); setPriceFilter(-1); setMinRating(0); setDietaryFilter(null); }}
-                className="text-xs text-white/40 hover:text-white/60 transition-colors underline underline-offset-2">
+              <button onClick={resetAll}
+                className="text-xs text-white/40 hover:text-white/70 transition-colors underline underline-offset-2">
                 Reset all filters
               </button>
             )}
@@ -636,14 +671,13 @@ export default function ExplorePage() {
             <Compass size={36} className="text-white/20 mx-auto mb-3" />
             <p className="text-white/50 text-sm">
               {places.length > 0
-                ? 'No places match your current filters. Try adjusting the rating, price, or dietary filter.'
+                ? 'No places match your current filters. Try adjusting or clearing them.'
                 : 'No places found. Try a different category or search for a new city above.'}
             </p>
             {places.length > 0 && (
-              <button
-                onClick={() => { setPriceFilter(-1); setMinRating(0); setDietaryFilter(null); }}
+              <button onClick={resetAll}
                 className="mt-3 text-violet-400 text-sm font-semibold hover:text-violet-300 transition-colors">
-                Clear filters
+                Clear all filters
               </button>
             )}
           </div>
