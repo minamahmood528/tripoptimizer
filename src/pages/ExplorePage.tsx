@@ -327,14 +327,14 @@ export default function ExplorePage() {
     if (searchInputRef.current) searchInputRef.current.value = '';
   };
 
-  const centerPin: Accommodation = {
+  const centerPin: Accommodation = useMemo(() => ({
     id: 'explore_center',
     name: locationLabel || (geoStatus === 'ok' ? 'Your Location' : 'City Center'),
     address: '',
     lat: searchCenter?.lat ?? 48.8566,
     lng: searchCenter?.lng ?? 2.3522,
-    checkIn: '', checkOut: '', type: 'hotel',
-  };
+    checkIn: '', checkOut: '', type: 'hotel' as const,
+  }), [searchCenter?.lat, searchCenter?.lng, locationLabel, geoStatus]);
 
   const mapsReady = isLoaded && !!searchCenter;
 
@@ -425,7 +425,7 @@ export default function ExplorePage() {
             uniformMarkerColor={EXPLORE_MARKER_COLOR}
             centerOverride={mapCenterOverride}
             onMapIdle={handleMapIdle}
-            onMarkerClick={(act) => setPopupActivity((prev) => prev?.id === act.id ? null : act)}
+            onMarkerClick={handleCardClick}
           />
         ) : (
           <div style={{ height: '260px' }} className="map-container flex items-center justify-center glass">
