@@ -164,7 +164,7 @@ function placeToActivity(
   };
 }
 
-// ─── Nearby Search ────────────────────────────────────────────────────────────
+// ─── Nearby Search (single page, used by itinerary builder) ──────────────────
 
 export async function searchNearbyPlaces(
   center: LatLng,
@@ -179,27 +179,59 @@ export async function searchNearbyPlaces(
 
   const results = await new Promise<google.maps.places.PlaceResult[]>((resolve) => {
     service.nearbySearch(
-      {
-        location: center,
-        radius,
-        type: types[0] as any,
-        rankBy: undefined,
-      },
+      { location: center, radius, type: types[0] as any },
       (res, status) => {
-        if (status === window.google.maps.places.PlacesServiceStatus.OK && res) {
-          resolve(res);
-        } else {
-          resolve([]);
-        }
+        resolve(status === window.google.maps.places.PlacesServiceStatus.OK && res ? res : []);
       },
     );
   });
 
   return results
-    .filter((p) => p.geometry?.location && p.name && (p.rating ?? 0) >= 3)
+    .filter((p) => p.geometry?.location && p.name)
     .map((p) => placeToActivity(p, 0, {} as UserPreferences))
     .filter((a): a is Activity => a !== null)
     .sort((a, b) => b.rating - a.rating);
+}
+
+// ─── Streaming Nearby Search (Explore page — up to 3 pages / ~60 results) ────
+// Calls onBatch immediately for each page so the UI updates progressively.
+// The rating filter is intentionally absent — users should see everything.
+
+export function streamNearbyPlaces(
+  center: LatLng,
+  type: string,
+  radius: number,
+  onBatch: (places: Activity[]) => void,
+  onComplete: () => void,
+): void {
+  if (!window.google?.maps?.places) { onComplete(); return; }
+
+  const service = new window.google.maps.places.PlacesService(document.createElement('div'));
+  let totalFetched = 0;
+
+  const handle = (
+    res: google.maps.places.PlaceResult[] | null,
+    status: google.maps.places.PlacesServiceStatus,
+    pagination: google.maps.places.PlaceSearchPagination | null,
+  ) => {
+    if (status === window.google.maps.places.PlacesServiceStatus.OK && res) {
+      totalFetched += res.length;
+      const batch = res
+        .filter((p) => p.geometry?.location && p.name)
+        .map((p) => placeToActivity(p, 0, {} as UserPreferences))
+        .filter((a): a is Activity => a !== null);
+      onBatch(batch);
+    }
+
+    if (pagination?.hasNextPage && totalFetched < 60) {
+      // Google requires ~2 s between page requests
+      setTimeout(() => pagination.nextPage(), 2200);
+    } else {
+      onComplete();
+    }
+  };
+
+  service.nearbySearch({ location: center, radius, type: type as any }, handle);
 }
 
 // ─── Fetch Place Details ──────────────────────────────────────────────────────

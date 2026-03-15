@@ -10,6 +10,8 @@ interface TripMapProps {
   activities: Activity[];
   height?: string;
   showRoute?: boolean;
+  /** When set, all activity markers use this colour instead of per-category colours */
+  uniformMarkerColor?: string;
   onMarkerClick?: (activity: Activity) => void;
   onMapIdle?: (center: LatLng) => void;
 }
@@ -24,7 +26,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   essential: '#EF4444',
 };
 
-export default function TripMap({ accommodation, activities, height = '400px', showRoute = true, onMarkerClick, onMapIdle }: TripMapProps) {
+export default function TripMap({ accommodation, activities, height = '400px', showRoute = true, uniformMarkerColor, onMarkerClick, onMapIdle }: TripMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
@@ -107,7 +109,7 @@ export default function TripMap({ accommodation, activities, height = '400px', s
 
     // Activity markers
     activities.forEach((act, i) => {
-      const color = CATEGORY_COLORS[act.category] ?? '#7C3AED';
+      const color = uniformMarkerColor ?? CATEGORY_COLORS[act.category] ?? '#7C3AED';
       const position = { lat: act.lat, lng: act.lng };
       path.push(position);
 
