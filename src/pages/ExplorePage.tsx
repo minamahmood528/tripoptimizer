@@ -174,6 +174,12 @@ export default function ExplorePage() {
     [popupActivity],
   );
 
+  // Only show price options that actually appear in current results
+  const availablePriceLevels = useMemo(
+    () => new Set(places.map((p) => p.priceLevel)),
+    [places],
+  );
+
   const isFoodCategory = FOOD_CATEGORIES.has(filter);
   const activeFilterCount =
     (priceFilters.length > 0 ? 1 : 0) +
@@ -433,7 +439,7 @@ export default function ExplorePage() {
                       priceFilters.length === 0 ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10')}>
                     All
                   </button>
-                  {PRICE_OPTIONS.map((opt) => (
+                  {PRICE_OPTIONS.filter((opt) => availablePriceLevels.has(opt.value)).map((opt) => (
                     <button key={opt.value} onClick={() => togglePrice(opt.value)}
                       className={clsx('px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all',
                         priceFilters.includes(opt.value) ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10')}>
