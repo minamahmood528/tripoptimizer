@@ -189,13 +189,15 @@ export default function TripMap({ accommodation, activities, height = '400px', s
     }
   }, [isLoaded, activities, accommodation, onMarkerClick, showRoute, autoFitBounds]);
 
-  // Pan to selected place and ensure it's visible at a reasonable zoom
+  // Fit both the user's location (green dot) and the selected place (purple dot) in view
   useEffect(() => {
-    if (!mapInstanceRef.current || !centerOverride) return;
-    mapInstanceRef.current.panTo({ lat: centerOverride.lat, lng: centerOverride.lng });
-    const zoom = mapInstanceRef.current.getZoom() ?? 14;
-    if (zoom < 14) mapInstanceRef.current.setZoom(14);
-  }, [centerOverride]);
+    const map = mapInstanceRef.current;
+    if (!map || !centerOverride) return;
+    const bounds = new window.google.maps.LatLngBounds();
+    bounds.extend({ lat: accommodation.lat, lng: accommodation.lng });
+    bounds.extend({ lat: centerOverride.lat, lng: centerOverride.lng });
+    map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 });
+  }, [centerOverride]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!apiKey) {
     return (

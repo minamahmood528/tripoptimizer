@@ -164,13 +164,15 @@ export default function ExplorePage() {
     return result;
   }, [places, sortBy, priceFilters, minRating, searchCenter]);
 
-  // Pan map to selected place when a card is clicked
-  useEffect(() => {
-    if (popupActivity) {
-      setMapCenter({ lat: popupActivity.lat, lng: popupActivity.lng });
-      setShowSearchHere(false);
-    }
-  }, [popupActivity]);
+  // Stable memoized references so TripMap doesn't redraw markers on every render
+  const mapActivities = useMemo(
+    () => (popupActivity ? [popupActivity] : []),
+    [popupActivity],
+  );
+  const mapCenterOverride = useMemo(
+    () => (popupActivity ? { lat: popupActivity.lat, lng: popupActivity.lng } : null),
+    [popupActivity],
+  );
 
   const isFoodCategory = FOOD_CATEGORIES.has(filter);
   const activeFilterCount =
@@ -416,12 +418,12 @@ export default function ExplorePage() {
         {mapCenter ? (
           <TripMap
             accommodation={centerPin}
-            activities={popupActivity ? [popupActivity] : []}
+            activities={mapActivities}
             height="260px"
             showRoute={false}
             autoFitBounds={false}
             uniformMarkerColor={EXPLORE_MARKER_COLOR}
-            centerOverride={popupActivity ? { lat: popupActivity.lat, lng: popupActivity.lng } : null}
+            centerOverride={mapCenterOverride}
             onMapIdle={handleMapIdle}
             onMarkerClick={(act) => setPopupActivity((prev) => prev?.id === act.id ? null : act)}
           />
