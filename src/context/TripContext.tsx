@@ -6,6 +6,7 @@ import { eachDayOfInterval, parseISO, format } from 'date-fns';
 
 interface TripCtx {
   trips: Trip[];
+  tripsLoaded: boolean;
   activeTrip: Trip | null;
   setActiveTrip: (t: Trip | null) => void;
   createFullTrip: (trip: Trip) => void;
@@ -32,15 +33,17 @@ function uid(prefix: string) {
 export function TripProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [tripsLoaded, setTripsLoaded] = useState(false);
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
 
   // Load user trips from localStorage on user change
   useEffect(() => {
-    if (!user) { setTrips([]); return; }
+    if (!user) { setTrips([]); setTripsLoaded(true); return; }
     try {
       const stored = localStorage.getItem(`${STORAGE_KEY}_${user.id}`);
       if (stored) setTrips(JSON.parse(stored));
     } catch { setTrips([]); }
+    setTripsLoaded(true);
   }, [user]);
 
   // Write to localStorage — called inside functional setTrips updates
@@ -273,7 +276,7 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <TripContext.Provider value={{
-      trips, activeTrip, setActiveTrip,
+      trips, tripsLoaded, activeTrip, setActiveTrip,
       createFullTrip, createTrip, updateTrip, deleteTrip,
       addCity, updateCity, setAccommodation,
       generateDaysForCity, selectItineraryOption, addActivityToDay,

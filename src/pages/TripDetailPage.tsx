@@ -50,8 +50,8 @@ interface FlatDay {
 
 export default function TripDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { trips, generateDaysForCity, selectItineraryOption } = useTrips();
-  const { user } = useAuth();
+  const { trips, tripsLoaded, generateDaysForCity, selectItineraryOption } = useTrips();
+  const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const trip = trips.find(t => t.id === id);
@@ -79,8 +79,8 @@ export default function TripDetailPage() {
   const dayStripRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!trip) navigate('/dashboard');
-  }, [trip, navigate]);
+    if (!authLoading && tripsLoaded && !trip) navigate('/dashboard');
+  }, [trip, authLoading, tripsLoaded, navigate]);
 
   // When a different day is selected, reset option + live data + hours
   useEffect(() => {
