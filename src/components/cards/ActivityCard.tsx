@@ -1,4 +1,4 @@
-import { Clock, MapPin, Star, ExternalLink, CheckCircle, Calendar } from 'lucide-react';
+import { Clock, MapPin, Star, ExternalLink, CheckCircle, Calendar, BookmarkPlus } from 'lucide-react';
 import type { Activity } from '../../types';
 import { getCategoryIcon, getPriceLevelLabel, formatDuration } from '../../utils/itinerary';
 import clsx from 'clsx';
@@ -8,6 +8,8 @@ interface ActivityCardProps {
   index: number;
   isSelected?: boolean;
   onClick?: () => void;
+  onSaveToTrip?: () => void;
+  showSaveButton?: boolean;
 }
 
 const CATEGORY_GRADIENTS: Record<string, string> = {
@@ -42,7 +44,7 @@ const BOOKING_PLATFORM_STYLES: Record<string, string> = {
   Agoda: 'bg-red-600/20 text-red-300 hover:bg-red-600/30',
 };
 
-export default function ActivityCard({ activity, index, isSelected, onClick }: ActivityCardProps) {
+export default function ActivityCard({ activity, index, isSelected, onClick, onSaveToTrip, showSaveButton }: ActivityCardProps) {
   const gradient = CATEGORY_GRADIENTS[activity.category] ?? 'from-slate-500/20 to-slate-500/10';
   const badge = CATEGORY_BADGES[activity.category] ?? 'bg-slate-500/20 text-slate-300 border-slate-500/30';
 
@@ -139,6 +141,17 @@ export default function ActivityCard({ activity, index, isSelected, onClick }: A
             </span>
           ))}
         </div>
+      )}
+
+      {/* Save to Trip */}
+      {showSaveButton && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onSaveToTrip?.(); }}
+          className="w-full flex items-center justify-center gap-2 mb-3 py-2.5 rounded-2xl bg-violet-500/15 border border-violet-500/30 text-violet-300 text-sm font-semibold hover:bg-violet-500/25 transition-all"
+        >
+          <BookmarkPlus size={15} />
+          Save to Trip
+        </button>
       )}
 
       {/* Booking Section */}

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { Trip, CityEntry, ItineraryDay, Accommodation } from '../types';
+import type { Trip, CityEntry, ItineraryDay, Accommodation, Activity } from '../types';
 import { useAuth } from './AuthContext';
 import { buildItineraryDay } from '../utils/itinerary';
 import { eachDayOfInterval, parseISO, format } from 'date-fns';
@@ -16,6 +16,7 @@ interface TripCtx {
   setAccommodation: (tripId: string, cityId: string, acc: Accommodation) => void;
   generateDaysForCity: (tripId: string, cityId: string) => void;
   selectItineraryOption: (tripId: string, cityId: string, dayId: string, optionIndex: number) => void;
+  addActivityToDay: (tripId: string, cityId: string, dayId: string, activity: Activity, time?: string) => void;
 }
 
 const TripContext = createContext<TripCtx>({} as TripCtx);
@@ -127,6 +128,33 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
     updateCity(tripId, cityId, { itineraryDays });
   }, [trips, user, updateCity]);
 
+  const addActivityToDay = useCallback((
+    tripId: string, cityId: string, dayId: string, activity: Activity, time?: string,
+  ) => {
+    const updated = trips.map((t) =>
+      t.id !== tripId ? t : {
+        ...t,
+        cities: t.cities.map((c) =>
+          c.id !== cityId ? c : {
+            ...c,
+            itineraryDays: c.itineraryDays.map((d) => {
+              if (d.id !== dayId) return d;
+              const optIdx = d.selectedOptionIndex;
+              const newActivity: Activity = { ...activity, arrivalTime: time ?? '10:00', distanceFromPrevKm: 0, travelTimeMin: 0 };
+              return {
+                ...d,
+                options: d.options.map((opt, idx) =>
+                  idx === optIdx ? { ...opt, activities: [...opt.activities, newActivity] } : opt,
+                ),
+              };
+            }),
+          },
+        ),
+      },
+    );
+    persist(updated);
+  }, [trips, persist]);
+
   const selectItineraryOption = useCallback((
     tripId: string, cityId: string, dayId: string, optionIndex: number,
   ) => {
@@ -155,7 +183,7 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
       trips, activeTrip, setActiveTrip,
       createTrip, updateTrip, deleteTrip,
       addCity, updateCity, setAccommodation,
-      generateDaysForCity, selectItineraryOption,
+      generateDaysForCity, selectItineraryOption, addActivityToDay,
     }}>
       {children}
     </TripContext.Provider>

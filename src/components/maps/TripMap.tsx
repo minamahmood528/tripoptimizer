@@ -9,7 +9,9 @@ interface TripMapProps {
   accommodation: Accommodation;
   activities: Activity[];
   height?: string;
+  showRoute?: boolean;
   onMarkerClick?: (activity: Activity) => void;
+  onMapIdle?: (center: LatLng) => void;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -22,7 +24,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   essential: '#EF4444',
 };
 
-export default function TripMap({ accommodation, activities, height = '400px', onMarkerClick }: TripMapProps) {
+export default function TripMap({ accommodation, activities, height = '400px', showRoute = true, onMarkerClick, onMapIdle }: TripMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
@@ -39,7 +41,7 @@ export default function TripMap({ accommodation, activities, height = '400px', o
     if (!isLoaded || !mapRef.current || !window.google?.maps) return;
     try {
       const center = { lat: accommodation.lat, lng: accommodation.lng };
-      mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+      const map = new window.google.maps.Map(mapRef.current, {
         center,
         zoom: 14,
         disableDefaultUI: false,
@@ -49,11 +51,18 @@ export default function TripMap({ accommodation, activities, height = '400px', o
         fullscreenControl: true,
         styles: DARK_MAP_STYLE,
       });
+      mapInstanceRef.current = map;
+      if (onMapIdle) {
+        map.addListener('idle', () => {
+          const c = map.getCenter();
+          if (c) onMapIdle({ lat: c.lat(), lng: c.lng() });
+        });
+      }
       setMapError(null);
     } catch (e) {
       setMapError('Failed to load map. Check your API key.');
     }
-  }, [isLoaded, accommodation.lat, accommodation.lng]);
+  }, [isLoaded, accommodation.lat, accommodation.lng, onMapIdle]);
 
   // Draw markers & route
   useEffect(() => {
@@ -144,29 +153,33 @@ export default function TripMap({ accommodation, activities, height = '400px', o
       markersRef.current.push(marker);
     });
 
-    // Return-to-hotel path
-    path.push({ lat: accommodation.lat, lng: accommodation.lng });
+    if (showRoute) {
+      // Return-to-hotel path
+      path.push({ lat: accommodation.lat, lng: accommodation.lng });
 
-    // Draw polyline route
-    polylineRef.current = new window.google.maps.Polyline({
-      path,
-      geodesic: true,
-      strokeColor: '#7C3AED',
-      strokeOpacity: 0.8,
-      strokeWeight: 3,
-      icons: [{
-        icon: { path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 4 },
-        offset: '50%',
-        repeat: '80px',
-      }],
-    });
-    polylineRef.current.setMap(map);
+      // Draw polyline route
+      polylineRef.current = new window.google.maps.Polyline({
+        path,
+        geodesic: true,
+        strokeColor: '#7C3AED',
+        strokeOpacity: 0.8,
+        strokeWeight: 3,
+        icons: [{
+          icon: { path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 4 },
+          offset: '50%',
+          repeat: '80px',
+        }],
+      });
+      polylineRef.current.setMap(map);
+    }
 
-    // Fit bounds
-    const bounds = new window.google.maps.LatLngBounds();
-    path.forEach((p) => bounds.extend(p));
-    map.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
-  }, [isLoaded, activities, accommodation, onMarkerClick]);
+    // Fit bounds only when there are activities to show
+    if (activities.length > 0) {
+      const bounds = new window.google.maps.LatLngBounds();
+      path.forEach((p) => bounds.extend(p));
+      map.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
+    }
+  }, [isLoaded, activities, accommodation, onMarkerClick, showRoute]);
 
   if (!apiKey) {
     return (
