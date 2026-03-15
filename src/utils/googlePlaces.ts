@@ -104,7 +104,7 @@ function getBookingPlatforms(type: ActivityType, category: ActivityCategory, nam
 function placeToActivity(
   place: google.maps.places.PlaceResult,
   distanceFromPrev: number,
-  prefs: UserPreferences,
+  _prefs: UserPreferences,
 ): Activity | null {
   if (!place.geometry?.location || !place.name) return null;
 
@@ -123,7 +123,13 @@ function placeToActivity(
   const lat = place.geometry.location.lat();
   const lng = place.geometry.location.lng();
   const rating = place.rating ?? 3.5;
-  const priceLevel = (place.price_level ?? 1) as 0 | 1 | 2 | 3 | 4;
+  // Use Google's price_level when available; otherwise infer from category.
+  // outdoor/culture/tourist attractions are commonly free (0); food/shopping default to moderate (2).
+  const priceFallback: 0 | 1 | 2 | 3 | 4 =
+    mapped.category === 'outdoor' || mapped.category === 'culture' ? 0
+    : mapped.category === 'food' || mapped.category === 'shopping' ? 2
+    : 1;
+  const priceLevel = (place.price_level ?? priceFallback) as 0 | 1 | 2 | 3 | 4;
   const isEssential = mapped.category === 'essential';
 
   // Estimate duration based on type
